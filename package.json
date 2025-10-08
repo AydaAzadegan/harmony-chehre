@@ -1,25 +1,17 @@
 {
-  "name": "mos-beauty-clinic",
+  "name": "harmony-chehre",
   "version": "1.0.0",
-  "description": "Mos Beauty Clinic website (Farsi, RTL) with contact, gallery, services, and chatbox",
   "main": "server.js",
+  "type": "commonjs",
+  "engines": { "node": ">=18 <23" },
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "start": "node server.js"
   },
   "dependencies": {
-    "ejs": "^3.1.10",
+    "ejs": "^3.1.9",
     "ejs-mate": "^4.0.0",
     "express": "^4.19.2",
-    "next": "^15.5.4",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "socket.io": "^4.8.1"
-  },
-  "devDependencies": {
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.1",
-    "nodemon": "^3.1.4",
-    "typescript": "^5.9.3"
+    "socket.io": "^4.7.5"
   }
 }
