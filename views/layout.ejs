@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title><%= pageTitle %></title>
+<% if (typeof metaDescription !== 'undefined' && metaDescription) { %>
+  <meta name="description" content="<%- metaDescription %>">
+<% } %>
+<link rel="stylesheet" href="/css/styles.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title><%= pageTitle %></title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <meta name="description" content="کلینیک زیبایی هارمونی چهره - خدمات پوست، لیزر، تزریق، فرم‌دهی بدن. رزرو وقت و مشاوره رایگان." />
+</head>
+<body>
+  <%- include('partials/header') %>
+  <main class="container">
+    <%- body %>
+  </main>
+  <%- include('partials/footer') %>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/chat.js"></script>
+</body>
+</html>
+<title><%= pageTitle %></title>
+<% if (typeof metaDescription !== 'undefined' && metaDescription) { %>
+  <meta name="description" content="<%- metaDescription %>">
+<% } %>

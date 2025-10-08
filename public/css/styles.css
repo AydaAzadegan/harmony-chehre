@@ -1,0 +1,176 @@
+/* ===== Mos Beauty Clinic – Olive/Artichoke Theme ===== */
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;700&display=swap');
+
+:root{
+  /* Palette */
+  --olive:#708238;         /* Olive Green (از تصویر) */
+  --artichoke:#8F9779;     /* Artichoke Green (از تصویر) */
+  --sage:#A9B79E;          /* روشن‌تر برای سطوح */
+  --cream:#F7F6F0;         /* بک‌گراند روشن/هایلایت */
+  --ink:#0F1210;           /* نوشته تیره */
+  --muted:#6A7268;         /* نوشته فرعی */
+  --white:#ffffff;
+  --black:#000;
+
+  /* UI */
+  --bg:#F5F7F4;            /* پس‌زمینه کلی روشن */
+  --card:rgba(255,255,255,0.72);
+  --border:rgba(16,22,18,0.09);
+  --shadow:0 10px 30px rgba(24,35,25,.12);
+
+  /* Accents */
+  --accent:#C3D8A9;        /* سبز روشن برای Badges */
+  --cta:#8BA04F;           /* دکمه اصلی (olive روشن‌تر) */
+  --cta-hover:#7C9247;
+}
+
+*{ box-sizing:border-box }
+html,body{ margin:0; padding:0; font-family:'Vazirmatn', system-ui, sans-serif; color:var(--ink); background:var(--bg); }
+img{ max-width:100%; display:block }
+
+.container{ width:min(1150px,92vw); margin-inline:auto }
+
+.site-header{
+  position:sticky; top:0; z-index:20;
+  backdrop-filter:saturate(180%) blur(10px);
+  background:linear-gradient(180deg, rgba(143,151,121,.35), rgba(255,255,255,.55));
+  border-bottom:1px solid var(--border);
+}
+.header-inner{ display:flex; align-items:center; justify-content:space-between; padding:12px 0 }
+.brand{ display:flex; align-items:center; gap:10px; font-weight:700; color:#2E3326 }
+.brand-logo{ font-size:20px }
+.brand-title{ font-size:18px }
+.nav a{ color:#2E3326; text-decoration:none; margin-inline:10px; opacity:.9; position:relative }
+.nav a:hover{ color:var(--olive) }
+.nav a::after{
+  content:""; position:absolute; inset-inline:auto 0; bottom:-3px; height:2px; width:0;
+  background:var(--olive); transition:width .25s ease; right:0;
+}
+.nav a:hover::after{ width:100% }
+
+.hero{
+  /* گرادیان لطیف سبز */
+  background:
+    radial-gradient(800px 420px at 70% -10%, #DCE7CE 0%, transparent 60%),
+    linear-gradient(180deg, #F3F6EF 0%, #EEF3E9 60%, #E9F0E3 100%);
+  border-bottom:1px solid var(--border);
+}
+.hero-content{ text-align:center; padding:70px 0 40px }
+.hero h1{ margin:0 0 10px; font-size:34px; color:#2B3325; letter-spacing:.2px }
+.hero p{ margin:0 0 22px; color:var(--muted) }
+.btn{
+  display:inline-block; background:var(--cta); color:var(--white);
+  text-decoration:none; padding:11px 18px; border-radius:999px; font-weight:700;
+  border:1px solid rgba(0,0,0,.06); box-shadow:var(--shadow);
+  transition:transform .15s ease, background .2s ease, box-shadow .2s ease;
+}
+.btn:hover{ background:var(--cta-hover); transform:translateY(-1px); box-shadow:0 12px 32px rgba(44,64,32,.18) }
+.btn.outline{
+  background:transparent; color:#2E3326; border:1px solid var(--olive);
+}
+.badge{
+  display:inline-flex; gap:6px; align-items:center;
+  background:var(--accent); color:#28301F; font-weight:600;
+  padding:6px 10px; border-radius:999px; border:1px solid rgba(0,0,0,.06);
+}
+
+.section{ padding:42px 0 }
+.section h2{ margin:0 0 14px; font-size:22px; color:#273022 }
+
+.cards{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:16px;
+}
+.card{
+  background:var(--card); border:1px solid var(--border); border-radius:18px; padding:16px;
+  box-shadow:var(--shadow);
+  transition:transform .18s ease, box-shadow .18s ease;
+}
+.card:hover{ transform:translateY(-3px); box-shadow:0 16px 40px rgba(24,35,25,.15) }
+.card h3{ margin:0 0 6px; color:#2C3328 }
+.card p{ color:var(--muted); line-height:1.9; margin:0 }
+
+.gallery{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px }
+.gallery-item{ display:block; border-radius:16px; overflow:hidden; border:1px solid var(--border) }
+.gallery img{ width:100%; height:170px; object-fit:cover; filter:saturate(105%) contrast(102%) }
+.gallery-item:hover img{ transform:scale(1.02); transition:transform .25s ease }
+
+.contact-grid{ display:grid; grid-template-columns:1.2fr .8fr; gap:18px }
+@media (max-width:900px){ .contact-grid{ grid-template-columns:1fr } }
+
+.contact-form{
+  background:var(--card); border:1px solid var(--border); border-radius:18px; padding:18px; display:grid; gap:12px;
+  box-shadow:var(--shadow);
+}
+.contact-form label{ color:#2C3328; font-weight:600; font-size:14px }
+.contact-form input, .contact-form textarea{
+  width:100%; padding:12px 12px; border-radius:12px; border:1px solid var(--border);
+  background:#FAFBF8; color:#1E241C
+}
+.contact-form input:focus, .contact-form textarea:focus{
+  outline:none; border-color:var(--olive); box-shadow:0 0 0 3px rgba(112,130,56,.15)
+}
+.success{ color:#2E6B2E; font-size:14px; margin-top:6px }
+
+.contact-info{
+  background:linear-gradient(180deg, #F4F7F0, #EEF3E9);
+  border:1px solid var(--border); border-radius:18px; padding:18px; box-shadow:var(--shadow)
+}
+.map-placeholder{
+  height:220px; border:1px dashed var(--border); border-radius:12px;
+  display:flex; align-items:center; justify-content:center; color:var(--muted); background:#FAFBF8
+}
+
+.chatbox{ background:var(--card); border:1px solid var(--border); border-radius:18px; overflow:hidden; box-shadow:var(--shadow) }
+.chat-header{ display:flex; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--border) }
+.chat-messages{ height:260px; overflow:auto; padding:12px; display:flex; flex-direction:column; gap:8px; background:#FAFBF8 }
+.chat-msg{ background:#FFFFFF; border:1px solid var(--border); padding:8px 10px; border-radius:12px }
+.chat-msg small{ color:var(--muted); display:block; margin-top:4px; font-size:11px }
+.chat-form{ display:flex; gap:8px; padding:10px; border-top:1px solid var(--border) }
+.chat-form input{ flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:#FFFFFF; color:#1E241C }
+
+.site-footer{ margin-top:36px; border-top:1px solid var(--border); padding-top:24px; background:linear-gradient(180deg,#F4F7F0,#F0F4EB) }
+.footer-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:18px }
+.copy{ text-align:center; color:var(--muted); padding:10px 0 18px }
+
+/* Floating WhatsApp */
+.fab{
+  position:fixed; left:18px; bottom:18px; z-index:50; display:inline-flex; align-items:center; gap:8px;
+  padding:10px 14px; border-radius:999px; background:var(--olive); color:#fff;
+  border:1px solid rgba(0,0,0,.08); box-shadow:0 10px 28px rgba(86,110,50,.28);
+  text-decoration:none; font-weight:700;
+}
+.fab:hover{ background:#627432 }
+
+/* --- Contact chips --- */
+.contact-links{
+  display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;
+}
+
+.contact-chip{
+  display:inline-flex; align-items:center; gap:8px;
+  background: var(--card);
+  color: #2E3326;
+  text-decoration: none;              /* remove blue underline */
+  border:1px solid var(--border);
+  border-radius: 999px;
+  padding:8px 12px;
+  box-shadow: var(--shadow);
+  transition: transform .15s ease, box-shadow .15s ease, background .2s ease, border-color .2s ease;
+}
+
+.contact-chip:hover{
+  transform: translateY(-2px);
+  background: #F4F7F0;
+  border-color: rgba(112,130,56,.35); /* olive tint */
+  box-shadow: 0 12px 28px rgba(24,35,25,.12);
+}
+
+.chip-icon{
+  width:18px; height:18px; flex:0 0 18px;
+  fill: var(--olive);                 /* icon in olive */
+}
+
+.chip-text{
+  font-weight: 700;
+  letter-spacing: .2px;
+}
