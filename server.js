@@ -18,7 +18,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json()); // <-- needed for /api/bot and /api/bot/lead
 
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // ✅ REQUIRED for /api/bot to read req.body.q
+app.use(express.json()); // MUST be enabled before /api/bot
 
 // --- HTTP + Socket.IO ---
 const http = require('http').createServer(app);
@@ -299,7 +299,100 @@ app.post('/contact', (req, res) => {
   return res.redirect('/#contact-success');
 });
 
-// --- Chatbot: FAQ / intents ---
+
+
+
+
+// ---------- (safety) ensure globals exist so we don't crash ----------
+global.messages = global.messages || [];
+const messages = global.messages;
+
+global.leads = global.leads || [];
+const leads = global.leads;
+
+// ---------- Gemini usage guards + status route ----------
+const GEMINI_ENABLED = process.env.GEMINI_ENABLED !== 'false';
+const GEMINI_DAILY_LIMIT = Number(process.env.GEMINI_DAILY_LIMIT || 100);
+let geminiCallsToday = 0;
+let geminiDate = new Date().toDateString();
+
+function canUseGemini() {
+  const today = new Date().toDateString();
+  if (today !== geminiDate) { geminiDate = today; geminiCallsToday = 0; }
+  return GEMINI_ENABLED && !!process.env.GOOGLE_GENAI_API_KEY && geminiCallsToday < GEMINI_DAILY_LIMIT;
+}
+function countGemini() { geminiCallsToday++; }
+
+// Quick status check (open in browser): /_gemini_status
+app.get('/_gemini_status', (req, res) => {
+  res.json({
+    enabled: GEMINI_ENABLED,
+    haveKey: !!process.env.GOOGLE_GENAI_API_KEY,
+    limit: GEMINI_DAILY_LIMIT,
+    callsToday: geminiCallsToday,
+    date: geminiDate
+  });
+});
+
+// ---------- Gemini fallback (REST; no SDK) with retries + logging ----------
+async function askGemini_FarsiClinic(userText) {
+  const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
+  if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
+
+  const SYSTEM =
+`تو دستیار کلینیک «هارمونی چهره» هستی و همیشه فارسی و کوتاه پاسخ می‌دهی.
+- خدمات زیبایی (بوتاکس، فیلر لب/گونه/چانه/خط فک) و مراقبت‌های عمومی قبل/بعد را ایمن توضیح بده.
+- تشخیص/نسخه/قیمت قطعی نده؛ در موارد خاص تأکید کن معاینه لازم است.
+- اگر بی‌ربط بود، مؤدبانه کوتاه پاسخ بده و گفتگو را به خدمات برگردان.
+- راه‌های تماس (در صورت مرتبط بودن): +989150739223 ، @dr_atighinasab_ .
+- لینک‌های داخلی: /services/botox /services/lip-filler /services/cheek-chin-filler /services/jawline-filler`;
+
+  const payload = {
+    contents: [
+      { role: "user", parts: [{ text: `${SYSTEM}\n\nپرسش کاربر:\n${String(userText||'').slice(0,2000)}` }] }
+    ],
+    generationConfig: { maxOutputTokens: 350, temperature: 0.3 }
+  };
+
+  // Try a few model IDs (some projects allow only certain aliases)
+  const models = [
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash-8b"
+  ];
+
+  for (const model of models) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await r.json();
+
+      if (!r.ok) {
+        console.error('Gemini HTTP error', r.status, { model, data });
+        // 400 invalid payload/model, 403 permission/billing/region, 429 quota, 5xx service
+        continue; // try next model
+      }
+
+      const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (txt) return txt;
+
+      console.warn('Gemini empty/blocked response', { model, data });
+      // try next model if empty/blocked
+    } catch (e) {
+      console.error('Gemini fetch error', { model, error: e?.message || e });
+      // try next model
+    }
+  }
+
+  // If all attempts failed:
+  return 'در حال حاضر پاسخ هوشمند دردسترس نیست.';
+}
+
+// ---------- Chatbot: FAQ / intents ----------
 app.post('/api/bot', async (req, res) => {
   const raw = String(req.body?.q || '');
   const norm = raw.toLowerCase()
@@ -308,7 +401,7 @@ app.post('/api/bot', async (req, res) => {
 
   const reply = (t) => res.json({ a: t });
 
-  // Safety
+  // Safety first
   if (/درد شديد|خونريزي|خونریزی|اورژانس|سوزش شديد/.test(norm)) {
     return reply(`اگر علائم شدید دارید لطفاً فوراً تماس بگیرید: <a href="tel:+989150739223">+98 915 073 9223</a>`);
   }
@@ -346,13 +439,12 @@ app.post('/api/bot', async (req, res) => {
     countGemini();
     return reply(ans);
   }
+
   // Disabled / over limit / no key
   return reply('برای پاسخ دقیق‌تر نیاز به بررسی حضوری است. می‌توانید پرسش را شفاف‌تر بیان کنید یا با ما تماس بگیرید.');
 });
 
-
-
-// --- Chatbot: Lead capture ---
+// ---------- Chatbot: Lead capture ----------
 app.post('/api/bot/lead', (req, res) => {
   const { service = '', name = '', phone = '' } = req.body || {};
   const p = String(phone).replace(/\s+/g, '');
@@ -371,11 +463,11 @@ app.post('/api/bot/lead', (req, res) => {
   leads.push(lead);
   console.log('New lead (chatbot):', lead);
 
-  // TODO (optional): send email/telegram notification here
+  // TODO: email/telegram notification if you like
   return res.json({ ok: true });
 });
 
-// --- Socket.IO (simple site chat) ---
+// ---------- Socket.IO (simple site chat) ----------
 io.on('connection', (socket) => {
   socket.emit('chat:init', messages.slice(-30));
   socket.on('chat:msg', (payload) => {
@@ -389,77 +481,4 @@ io.on('connection', (socket) => {
     messages.push(msg);
     io.emit('chat:broadcast', msg);
   });
-});
-
-// ---- Gemini usage guards ----
-const GEMINI_ENABLED = process.env.GEMINI_ENABLED !== 'false';
-const GEMINI_DAILY_LIMIT = Number(process.env.GEMINI_DAILY_LIMIT || 100);
-let geminiCallsToday = 0;
-let geminiDate = new Date().toDateString();
-
-function canUseGemini() {
-  const today = new Date().toDateString();
-  if (today !== geminiDate) { geminiDate = today; geminiCallsToday = 0; }
-  return GEMINI_ENABLED && !!process.env.GOOGLE_GENAI_API_KEY && geminiCallsToday < GEMINI_DAILY_LIMIT;
-}
-function countGemini() { geminiCallsToday++; }
-
-// (Optional) quick status check in browser at /_gemini_status
-app.get('/_gemini_status', (req, res) => {
-  res.json({
-    enabled: GEMINI_ENABLED,
-    haveKey: !!process.env.GOOGLE_GENAI_API_KEY,
-    limit: GEMINI_DAILY_LIMIT,
-    callsToday: geminiCallsToday,
-    date: geminiDate
-  });
-});
-
-
-// ---- Gemini fallback (REST; no SDK) ----
-async function askGemini_FarsiClinic(userText) {
-  const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
-  if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
-
-  const systemInstr =
-`تو دستیار کلینیک «هارمونی چهره» هستی و همیشه فارسی و کوتاه پاسخ می‌دهی.
-- خدمات زیبایی (بوتاکس، فیلر لب/گونه/چانه/خط فک) و مراقبت‌های عمومی قبل/بعد را ایمن توضیح بده.
-- تشخیص/نسخه/قیمت قطعی نده؛ در موارد خاص تأکید کن معاینه لازم است.
-- اگر بی‌ربط بود، مؤدبانه کوتاه پاسخ بده و گفتگو را به خدمات برگردان.
-- راه‌های تماس (در صورت مرتبط بودن): +989150739223 ، @dr_atighinasab_ .
-- لینک‌های داخلی: /services/botox /services/lip-filler /services/cheek-chin-filler /services/jawline-filler`;
-
-  const body = {
-    contents: [
-      { role: "user", parts: [{ text: `${systemInstr}\n\nپرسش کاربر:\n${String(userText||'').slice(0,2000)}` }] }
-    ],
-    generationConfig: { maxOutputTokens: 350, temperature: 0.3 }
-  };
-
-  try {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify(body)
-    });
-    const data = await r.json();
-    if (!r.ok) {
-      console.error('Gemini HTTP error', r.status, data);
-      return 'در حال حاضر پاسخ هوشمند دردسترس نیست.';
-    }
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    return text || 'فعلاً نتوانستم پاسخی بدهم.';
-  } catch (e) {
-    console.error('Gemini error:', e?.message || e);
-    return 'در حال حاضر پاسخ هوشمند دردسترس نیست.';
-  }
-}
-
-
-// ---------------- Start ----------------
-const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => {
-  console.log(`Harmony Chehre Beauty Clinic running at http://localhost:${PORT}`);
 });
