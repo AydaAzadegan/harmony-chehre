@@ -568,3 +568,29 @@ const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
   console.log(`Harmony Chehre Beauty Clinic running at http://localhost:${PORT}`);
 });
+
+
+
+
+
+
+
+// View what your key actually sees
+app.get('/_gemini_models', async (req, res) => {
+  try {
+    const all = await listGeminiModels();
+    res.json({ ok: true, models: all });
+  } catch (e) {
+    res.status(500).json({ ok:false, error: e?.message || String(e) });
+  }
+});
+
+app.get('/_gemini_test', async (req, res) => {
+  try {
+    const q = req.query.q || 'سلام! درباره بوتاکس یک جمله کوتاه بگو.';
+    const a = await askGemini_FarsiClinic(q, { verboseToUser: true });
+    res.json({ ok: true, answer: a || 'null (no answer)' });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+});
