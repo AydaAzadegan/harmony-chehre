@@ -24,6 +24,25 @@ app.use(express.json()); // needed for /api/bot and /api/bot/lead
 const http = require('http').createServer(app);
 const io = require('socket.io')(http, { cors: { origin: "*" } });
 
+
+// ---------------- Routes ----------------
+
+// Home (index)
+app.get('/', (req, res) => {
+  res.render('index', {
+    pageTitle: 'کلینیک زیبایی هارمونی چهره',
+    services,     // cards on the home page
+    messages,     // for your simple chat widget (safe even if unused)
+    req
+  });
+});
+
+app.use(express.static(path.join(__dirname, 'public')));
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+
+
 // ---------------- Data ----------------
 const services = [
   { id:'botox', slug:'botox', title:'بوتاکس (تزریق بوتولینوم)', text:'کاهش خطوط پیشانی، اخم و پنجه‌کلاغی با نتیجه طبیعی و بدون حالت یخ‌زده.', cover:'/images/services/botox.jpg' },
