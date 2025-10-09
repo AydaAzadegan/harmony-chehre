@@ -303,74 +303,108 @@ app.get('/_gemini_models', async (req, res) => {
   }
 });
 
+async function listGeminiModels() {
+  const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
+  const bases = ['v1', 'v1beta']; // try both
+  const result = [];
+  for (const base of bases) {
+    const url = `https://generativelanguage.googleapis.com/${base}/models?key=${API_KEY}`;
+    try {
+      const r = await fetch(url);
+      const j = await r.json();
+      const names = (j.models || []).map(m => ({ base, name: m.name }));
+      result.push(...names);
+    } catch (e) {
+      // ignore and continue
+    }
+  }
+  return result;
+}
+function pickBestFlashModel(models) {
+  // prefer v1 over v1beta; prefer newer variants
+  const order = [
+    'models/gemini-1.5-flash-002',
+    'models/gemini-1.5-flash-latest',
+    'models/gemini-1.5-flash',
+    'models/gemini-1.5-flash-8b-latest',
+    'models/gemini-1.5-flash-8b',
+  ];
+  // split by base
+  const v1 = models.filter(m => m.base === 'v1').map(m => m.name);
+  const v1beta = models.filter(m => m.base === 'v1beta').map(m => m.name);
 
-// Tries multiple model+API combos until one works.
-// No safetySettings (keeps it compatible).
+  for (const wanted of order) if (v1.includes(wanted))   return { base: 'v1',    name: wanted };
+  for (const wanted of order) if (v1beta.includes(wanted)) return { base: 'v1beta', name: wanted };
+
+  // fall back to any flash-like model
+  const any = models.find(m => /gemini-1\.5-flash/.test(m.name));
+  return any || null;
+}
+
+
 async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
   const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
   if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
 
+  // discover & pick a working model
+  const models = await listGeminiModels();
+  const chosen = pickBestFlashModel(models);
+  if (!chosen) {
+    const msg = 'هیچ مدل سازگار (flash) برای این کلید فعال نیست.';
+    return verboseToUser || process.env.GEMINI_DEBUG === 'true' ? msg : null;
+  }
+
+  const { base, name } = chosen; // e.g. base='v1', name='models/gemini-1.5-flash-002'
+  const URL = `https://generativelanguage.googleapis.com/${base}/${name}:generateContent?key=${API_KEY}`;
+
   const SYSTEM =
 `تو دستیار کلینیک «هارمونی چهره» هستی و همیشه فارسی و کوتاه پاسخ می‌دهی.
-- خدمات زیبایی (بوتاکس، فیلر لب/گونه/چانه/خط فک) و مراقبت‌های عمومی قبل/بعد را ایمن توضیح بده.
+- درباره بوتاکس و فیلرها و مراقبت‌های عمومی قبل/بعد، ایمن و عمومی توضیح بده.
 - تشخیص/نسخه/قیمت قطعی نده؛ در موارد خاص تأکید کن معاینه لازم است.
 - اگر بی‌ارتباط بود، مؤدبانه کوتاه پاسخ بده و گفتگو را به خدمات برگردان.
-- راه‌های تماس (در صورت مرتبط بودن): +989150739223 ، @dr_atighinasab_ .
+- راه‌های تماس: +989150739223 ، @dr_atighinasab_ .
 - لینک‌های داخلی: /services/botox /services/lip-filler /services/cheek-chin-filler /services/jawline-filler`;
 
+  // v1/v1beta both accept system_instruction in REST today
   const payload = {
     system_instruction: { parts: [{ text: SYSTEM }] },
     contents: [{ role: "user", parts: [{ text: String(userText || '').slice(0, 2000) }] }],
     generationConfig: { maxOutputTokens: 350, temperature: 0.3 }
+    // NOTE: removed safetySettings to avoid schema errors on some projects
   };
 
-  // Try these in order — one of them will match your project’s allowlist
-  const bases  = ['v1', 'v1beta'];
-  const models = [
-    'models/gemini-1.5-flash',          // common
-    'models/gemini-1.5-flash-002',      // common in v1
-    'models/gemini-1.5-flash-latest',
-    'models/gemini-1.5-flash-8b',
-    'models/gemini-1.5-flash-8b-latest'
-  ];
+  try {
+    const r = await fetch(URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await r.json();
 
-  for (const base of bases) {
-    for (const model of models) {
-      const URL = `https://generativelanguage.googleapis.com/${base}/${model}:generateContent?key=${API_KEY}`;
-      try {
-        const r = await fetch(URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await r.json();
-
-        if (!r.ok) {
-          const msg = data?.error?.message || data?.error?.status || String(r.status);
-          console.warn('Gemini HTTP error', { base, model, msg });
-          continue; // try next combo
-        }
-
-        const texts = (data?.candidates || [])
-          .flatMap(c => c?.content?.parts || [])
-          .map(p => (p?.text || '').trim())
-          .filter(Boolean);
-
-        if (texts.length) return texts.join('\n').trim();
-
-        console.warn('Gemini empty/blocked response', { base, model });
-        // try next combo
-      } catch (e) {
-        console.warn('Gemini fetch error', { base, model, error: e?.message || e });
-        // try next combo
-      }
+    if (!r.ok) {
+      const msg = data?.error?.message || data?.error?.status || String(r.status);
+      console.warn('Gemini HTTP error', { base, name, msg });
+      return verboseToUser || process.env.GEMINI_DEBUG === 'true'
+        ? `خطای سرویس هوشمند (${name} @ ${base}): ${msg}`
+        : null;
     }
-  }
 
-  // If nothing worked:
-  return verboseToUser || process.env.GEMINI_DEBUG === 'true'
-    ? 'هیچ مدل/نسخه‌ای برای این کلید فعال نیست. از /_gemini_models برای دیدن لیست مدل‌های مجاز استفاده کنید.'
-    : null;
+    const texts = (data?.candidates || [])
+      .flatMap(c => c?.content?.parts || [])
+      .map(p => (p?.text || '').trim())
+      .filter(Boolean);
+
+    if (texts.length) return texts.join('\n').trim();
+
+    return verboseToUser || process.env.GEMINI_DEBUG === 'true'
+      ? `پاسخ خالی/مسدود از مدل (${name} @ ${base}).`
+      : null;
+
+  } catch (e) {
+    return verboseToUser || process.env.GEMINI_DEBUG === 'true'
+      ? `خطای ارتباط با مدل (${name} @ ${base}): ${e?.message || e}`
+      : null;
+  }
 }
 
 
