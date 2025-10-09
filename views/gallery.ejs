@@ -1,0 +1,102 @@
+<% layout('layout') %>
+
+<section class="section" dir="rtl">
+  <header class="card" style="display:grid; gap:10px;">
+    <h1 style="margin:0">گالری نمونه‌کار</h1>
+    <p class="text-[var(--muted)]" style="margin:0">
+      نمونه‌های قبل و بعد و نماهای نزدیک از نتایج درمان‌ها. برای هر بخش روی تب کلیک کنید.
+    </p>
+
+    <!-- Tabs -->
+    <div class="tabs" role="tablist" aria-label="Gallery sections" style="display:flex; gap:6px; flex-wrap:wrap;">
+      <% sections.forEach((s, i) => { %>
+        <button class="tab-btn <%= i===0 ? 'active' : '' %>"
+                data-target="<%= s.key %>"
+                role="tab"
+                aria-selected="<%= i===0 ? 'true' : 'false' %>"
+                style="border:1px solid var(--border); background:#fff; padding:8px 12px; border-radius:999px; cursor:pointer;">
+          <%= s.title %>
+        </button>
+      <% }) %>
+    </div>
+  </header>
+</section>
+
+<section class="section" dir="rtl">
+  <% sections.forEach((s, i) => { %>
+    <div class="gallery-grid <%= i===0 ? 'show' : 'hide' %>" id="gal-<%= s.key %>" data-section="<%= s.key %>">
+      <div class="cards" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px;">
+        <% (photos[s.key] || []).forEach(src => { %>
+          <figure class="card" style="padding:8px; cursor:zoom-in;">
+            <img src="<%= src %>" alt="<%= s.title %>" loading="lazy"
+                 style="width:100%; height:180px; object-fit:cover; border-radius:8px;"
+                 onclick="openLightbox('<%= src %>')" />
+            <!-- اگر بخوای کپشن: <figcaption class="text-[var(--muted)]" style="font-size:12px; margin-top:6px;">کپشن</figcaption> -->
+          </figure>
+        <% }) %>
+        <% if (!(photos[s.key] || []).length) { %>
+          <div class="card" style="text-align:center; padding:20px;">به زودی تصاویر این بخش اضافه می‌شود.</div>
+        <% } %>
+      </div>
+    </div>
+  <% }) %>
+</section>
+
+<!-- Lightbox (modal) -->
+<div id="lightbox" class="hide" aria-hidden="true"
+     style="position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:99999; padding:10px;">
+  <button onclick="closeLightbox()" aria-label="بستن"
+          style="position:absolute; top:14px; left:16px; background:transparent; border:none; color:#fff; font-size:28px; cursor:pointer;">×</button>
+  <img id="lightbox-img" src="" alt="preview" style="max-width:96vw; max-height:92vh; border-radius:12px;"/>
+</div>
+
+<script>
+  // Tabs
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.getAttribute('data-target');
+
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+        b.style.background = '#fff';
+      });
+      btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+      btn.style.background = '#F4F7F0';
+
+      document.querySelectorAll('.gallery-grid').forEach(g => {
+        if (g.dataset.section === target) {
+          g.classList.remove('hide'); g.classList.add('show');
+        } else {
+          g.classList.remove('show'); g.classList.add('hide');
+        }
+      });
+    });
+  });
+
+  // Lightbox
+  window.openLightbox = function(src){
+    const lb = document.getElementById('lightbox');
+    const img = document.getElementById('lightbox-img');
+    img.src = src;
+    lb.classList.remove('hide');
+    lb.setAttribute('aria-hidden', 'false');
+  }
+  window.closeLightbox = function(){
+    const lb = document.getElementById('lightbox');
+    const img = document.getElementById('lightbox-img');
+    img.src = '';
+    lb.classList.add('hide');
+    lb.setAttribute('aria-hidden', 'true');
+  }
+  document.getElementById('lightbox')?.addEventListener('click', (e) => {
+    if (e.target.id === 'lightbox') closeLightbox();
+  });
+</script>
+
+<style>
+  .hide{ display:none; }
+  .show{ display:block; }
+  .tab-btn.active{ background:#F4F7F0 !important; }
+</style>

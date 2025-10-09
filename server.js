@@ -55,6 +55,46 @@ const services = [
   }
 ];
 
+
+// ---------- Gallery data ----------
+const gallerySections = [
+  { key: 'lipfiller',  title: 'فیلر لب' },
+  { key: 'chinfiller', title: 'فیلر چانه' },
+  { key: 'cheekfiller',title: 'فیلر گونه' },
+  { key: 'jawline',    title: 'فیلر خط فک' },
+  { key: 'botox',      title: 'بوتاکس' },
+];
+
+// هر بخش: لیست عکس‌ها (مسیرها را با عکس‌های واقعی خودت جایگزین کن)
+const galleryImages = {
+  lipfiller: [
+    '/images/gallery/lip/1lip.png',
+    '/images/gallery/lip/2lip.png',
+    '/images/gallery/lip/3lip.png',
+  ],
+  chinfiller: [
+    '/images/gallery/chin/1.jpg',
+    '/images/gallery/chin/2.jpg',
+    '/images/gallery/chin/3.jpg',
+  ],
+  cheekfiller: [
+    '/images/gallery/chick/1chick.png',
+ 
+  ],
+  jawline: [
+    '/images/gallery/jawline/1jawline.png',
+    '/images/gallery/jawline/2jawline.png',
+    '/images/gallery/jawline/3jawline.png',
+    '/images/gallery/jawline/4jawline.png',
+  ],
+  botox: [
+    '/images/gallery/botox/1botax.png',
+    '/images/gallery/botox/2botax.png',
+    '/images/gallery/botox/3botax.png',
+  ],
+};
+
+
 const serviceLongContent = {
   botox: {
     seo: {
@@ -456,6 +496,15 @@ app.get('/', (req, res) => {
     gallery: [],
     messages,
     req
+  });
+});
+
+// ---------- Routes ----------
+app.get('/gallery', (req, res) => {
+  res.render('gallery', {
+    pageTitle: 'گالری نمونه کار | هارمونی چهره',
+    sections: gallerySections,
+    photos: galleryImages
   });
 });
 
