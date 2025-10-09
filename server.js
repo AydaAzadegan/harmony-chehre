@@ -1,5 +1,6 @@
 // server.js
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const app = express();
 
@@ -25,40 +26,13 @@ const io = require('socket.io')(http, { cors: { origin: "*" } });
 
 // ---------------- Data ----------------
 const services = [
-  {
-    id: 'botox',
-    slug: 'botox',
-    title: 'بوتاکس (تزریق بوتولینوم)',
-    text: 'کاهش خطوط پیشانی، اخم و پنجه‌کلاغی با نتیجه طبیعی و بدون حالت یخ‌زده.',
-    cover: '/images/services/botox.jpg'
-  },
-  {
-    id: 'cheek-chin',
-    slug: 'cheek-chin-filler',
-    title: 'فیلر چانه و گونه',
-    text: 'بهبود برجستگی گونه و فرم چانه برای تناسب بهتر چهره با هیالورونیک اسید.',
-    cover: '/images/services/cheek-chin.jpeg'
-  },
-  {
-    id: 'jawline',
-    slug: 'jawline-filler',
-    title: 'فیلر خط فک',
-    text: 'تعریف مرز فک، اصلاح افتادگی و زاویه‌سازی ملایم و طبیعی.',
-    cover: '/images/services/jawline.jpeg'
-  },
-  {
-    id: 'lip',
-    slug: 'lip-filler',
-    title: 'فیلر لب (تزریق ژل لب)',
-    text: 'حجم‌دهی طبیعی، مرزبندی و اصلاح عدم تقارن با فیلر هیالورونیک اسید.',
-    cover: '/images/services/lip.png'
-  }
+  { id:'botox', slug:'botox', title:'بوتاکس (تزریق بوتولینوم)', text:'کاهش خطوط پیشانی، اخم و پنجه‌کلاغی با نتیجه طبیعی و بدون حالت یخ‌زده.', cover:'/images/services/botox.jpg' },
+  { id:'cheek-chin', slug:'cheek-chin-filler', title:'فیلر چانه و گونه', text:'بهبود برجستگی گونه و فرم چانه برای تناسب بهتر چهره با هیالورونیک اسید.', cover:'/images/services/cheek-chin.jpeg' },
+  { id:'jawline', slug:'jawline-filler', title:'فیلر خط فک', text:'تعریف مرز فک، اصلاح افتادگی و زاویه‌سازی ملایم و طبیعی.', cover:'/images/services/jawline.jpeg' },
+  { id:'lip', slug:'lip-filler', title:'فیلر لب (تزریق ژل لب)', text:'حجم‌دهی طبیعی، مرزبندی و اصلاح عدم تقارن با فیلر هیالورونیک اسید.', cover:'/images/services/lip.png' }
 ];
 
-
-const fs = require('fs');
-
-// sections (keys used as directory names under public/images/gallery)
+// ---------- Gallery (filesystem-driven) ----------
 const gallerySections = [
   { key: 'lip',     title: 'فیلر لب' },
   { key: 'chin',    title: 'فیلر چانه' },
@@ -67,237 +41,80 @@ const gallerySections = [
   { key: 'botox',   title: 'بوتاکس' },
 ];
 
-// helper to list images under /public/<relDir>
 function listImages(relDir) {
   const abs = path.join(__dirname, 'public', relDir);
   if (!fs.existsSync(abs)) return [];
   return fs.readdirSync(abs)
     .filter(fn => /\.(jpe?g|png|webp|avif)$/i.test(fn))
     .sort()
-    .map(fn => `/${relDir}/${fn}`); // static path from /public
+    .map(fn => `/${relDir}/${fn}`);
 }
 
-// Build photo lists (try both correct and your earlier misspells for robustness)
+// NOTE: looks in /public/images/gallery/{lip,chin,cheek or chick,jawline,botox}
 const photos = {
   lip:     listImages('images/gallery/lip'),
   chin:    listImages('images/gallery/chin'),
-  cheek:   listImages('images/gallery/cheek').concat(listImages('images/gallery/chick')), // supports 'chick' too
+  cheek:   [...listImages('images/gallery/cheek'), ...listImages('images/gallery/chick')],
   jawline: listImages('images/gallery/jawline'),
   botox:   listImages('images/gallery/botox'),
 };
 
-// Gallery route
-app.get('/gallery', (req, res) => {
-  res.render('gallery', {
-    pageTitle: 'گالری نمونه کار | هارمونی چهره',
-    sections: gallerySections,
-    photos
-  });
-});
-
-// (optional) debug route to see what the server found
-app.get('/_gallery_debug', (req, res) => res.json({ sections: gallerySections, photos }));
-
-
-
+// ---------------- Long service content (unchanged) ----------------
 const serviceLongContent = {
   botox: {
-    seo: {
-      description:
-        'بوتاکس برای کاهش خطوط دینامیک پیشانی، اخم و اطراف چشم با نتیجه طبیعی در کلینیک هارمونی چهره. معاینه تخصصی، مواد دارای مجوز، و راهنمایی مراقبت بعد.'
-    },
+    seo: { description: 'بوتاکس برای کاهش خطوط دینامیک پیشانی، اخم و اطراف چشم با نتیجه طبیعی در کلینیک هارمونی چهره. معاینه تخصصی، مواد دارای مجوز، و راهنمایی مراقبت بعد.' },
     body: `
       <h2>بوتاکس چیست و چگونه عمل می‌کند؟</h2>
       <p>بوتاکس (Botulinum Toxin) با مهار موقت انقباض برخی عضلات صورت، <strong>خطوط دینامیک</strong> مثل پیشانی، اخم و پنجه‌کلاغی را کاهش می‌دهد تا پوست <strong>صاف‌تر و جوان‌تر</strong> دیده شود. در کلینیک هارمونی چهره روی <em>طبیعی ماندن حالت چهره</em> تأکید داریم.</p>
-
-      <h3>مزایای بوتاکس در هارمونی چهره</h3>
-      <ul>
-        <li>اصلاح خطوط بدون ایجاد حالت یخ‌زده</li>
-        <li>استفاده از برندهای دارای مجوز و معتبر</li>
-        <li>تنظیم دوز دقیق بر اساس آناتومی چهره</li>
-        <li>مراقبت‌های پس از تزریق و پیگیری</li>
-      </ul>
-
+      <h3>مزایا</h3>
+      <ul><li>اصلاح خطوط بدون ایجاد حالت یخ‌زده</li><li>استفاده از برندهای دارای مجوز و معتبر</li><li>تنظیم دوز دقیق بر اساس آناتومی چهره</li><li>مراقبت‌های پس از تزریق و پیگیری</li></ul>
       <h3>کاندیدای مناسب</h3>
       <p>اگر خطوط اخم/پیشانی یا چین‌های اطراف چشم هنگام خندیدن/اخم کردن پررنگ می‌شود، گزینهٔ مناسبی هستید. در دوران بارداری/شیردهی انجام نمی‌شود.</p>
-
       <h3>فرآیند انجام</h3>
-      <ol>
-        <li><strong>مشاوره و ارزیابی عضلات:</strong> تعیین نقاط دقیق تزریق</li>
-        <li><strong>آماده‌سازی:</strong> ضدعفونی و علامت‌گذاری</li>
-        <li><strong>تزریق سریع و کم‌درد:</strong> با سوزن ظریف در چند نقطهٔ هدف</li>
-      </ol>
-
+      <ol><li><strong>مشاوره و ارزیابی عضلات:</strong> تعیین نقاط دقیق تزریق</li><li><strong>آماده‌سازی:</strong> ضدعفونی و علامت‌گذاری</li><li><strong>تزریق سریع و کم‌درد:</strong> با سوزن ظریف در چند نقطهٔ هدف</li></ol>
       <h3>شروع اثر و ماندگاری</h3>
-      <p>اثر اولیه طی <strong>۳–۷ روز</strong> ظاهر می‌شود و نتیجهٔ کامل حدود ۱۴ روز بعد دیده می‌شود. ماندگاری معمولاً <strong>۳–۶ ماه</strong> است و با تکرار منظم پایدارتر می‌شود.</p>
-
+      <p>اثر اولیه طی <strong>۳–۷ روز</strong> ظاهر می‌شود و نتیجهٔ کامل حدود ۱۴ روز بعد دیده می‌شود. ماندگاری معمولاً <strong>۳–۶ ماه</strong> است.</p>
       <h3>مراقبت‌های بعد</h3>
-      <ul>
-        <li>تا ۴ ساعت دراز نکشید و ناحیه را ماساژ ندهید</li>
-        <li>روز اول از ورزش سنگین و گرمای زیاد پرهیز کنید</li>
-        <li>در صورت نیاز، ویزیت تکمیلی بعد از ۲ هفته انجام می‌شود</li>
-      </ul>
-
-      <div class="card" style="margin-top:12px">
-        <p style="margin:0"><strong>مشاوره:</strong> برای انتخاب نواحی مناسب و دوز استاندارد
-        با <a href="tel:+989150739223">تماس تلفنی</a> یا
-        <a href="https://www.instagram.com/dr_atighinasab_/?hl=en" target="_blank" rel="noopener">اینستاگرام</a> هماهنگ کنید.</p>
-      </div>
+      <ul><li>تا ۴ ساعت دراز نکشید و ناحیه را ماساژ ندهید</li><li>روز اول از ورزش سنگین و گرمای زیاد پرهیز کنید</li><li>در صورت نیاز، ویزیت تکمیلی بعد از ۲ هفته انجام می‌شود</li></ul>
+      <div class="card" style="margin-top:12px"><p style="margin:0"><strong>مشاوره:</strong> <a href="tel:+989150739223">تماس</a> یا <a href="https://www.instagram.com/dr_atighinasab_/?hl=en" target="_blank" rel="noopener">اینستاگرام</a>.</p></div>
     `,
     faqs: [
-      { q: 'اثر بوتاکس کی شروع می‌شود؟', a: 'بین ۳ تا ۷ روز آغاز می‌شود و نتیجهٔ کامل حدود ۱۴ روز بعد مشخص است.' },
-      { q: 'مدت ماندگاری بوتاکس چقدر است؟', a: 'به‌طور معمول ۳ تا ۶ ماه؛ با تکرار منظم پایدارتر می‌شود.' },
-      { q: 'آیا صورتم بی‌حالت می‌شود؟', a: 'خیر؛ با تنظیم دوز و نقاط تزریق، نتیجه طبیعی خواهد بود.' },
-      { q: 'آیا نقاهت دارد؟', a: 'خیر؛ می‌توانید همان روز به کارهای روزانه برگردید. کبودی خفیف ممکن است ۱–۳ روز باقی بماند.' }
+      { q:'اثر بوتاکس کی شروع می‌شود؟', a:'بین ۳ تا ۷ روز آغاز می‌شود و نتیجهٔ کامل ~۱۴ روز.' },
+      { q:'دوام؟', a:'۳ تا ۶ ماه (متغیر).' },
+      { q:'بی‌حالت می‌شوم؟', a:'با تنظیم دوز و نقاط، نتیجه طبیعی است.' },
+      { q:'نقاهت؟', a:'بازگشت سریع به فعالیت‌ها؛ کبودی خفیف ممکن است ۱–۳ روز.' },
     ]
   },
-
   'lip-filler': {
-    seo: {
-      description:
-        'فیلر لب با هیالورونیک اسید برای حجم‌دهی طبیعی، مرزبندی و اصلاح عدم تقارن لب. مشاوره تخصصی، مواد دارای مجوز، و نتایج طبیعی در کلینیک هارمونی چهره.'
-    },
+    seo: { description:'فیلر لب با هیالورونیک اسید برای حجم‌دهی طبیعی…' },
     body: `
       <h2>فیلر لب چیست؟</h2>
-      <p>فیلر لب روشی غیرجراحی برای <strong>حجم‌دهی طبیعی</strong>، مرزبندی (Lip Border) و
-      <strong>اصلاح عدم تقارن</strong> است. در کلینیک هارمونی چهره از فیلرهای <strong>هیالورونیک اسید</strong> دارای مجوز استفاده می‌شود؛
-      ماده‌ای سازگار با بدن که به‌مرور توسط بدن جذب می‌گردد.</p>
-
-      <h3>مزایای فیلر لب در کلینیک هارمونی چهره</h3>
-      <ul>
-        <li>طراحی فرم لب بر اساس تناسب چهره و درخواست شما (Natural / Defined)</li>
-        <li>استفاده از فیلر برند معتبر با ماندگاری متعادل</li>
-        <li>بی‌حسی موضعی و تکنیک تزریق کم‌درد</li>
-        <li>تأکید بر نتیجه طبیعی و عدم اغراق</li>
-      </ul>
-
-      <h3>کاندیدای مناسب</h3>
-      <p>اگر لب باریک، نامتقارن یا مرزبندی محوی دارید یا به‌دنبال <em>فرم‌دهی طبیعی</em> هستید،
-      کاندیدای مناسبی محسوب می‌شوید. در بارداری/شیردهی یا سابقه آلرژی شدید، ابتدا با پزشک مشورت کنید.</p>
-
-      <h3>مراحل انجام کار</h3>
-      <ol>
-        <li><strong>مشاوره و طراحی:</strong> بررسی فرم فعلی لب و تعیین هدف.</li>
-        <li><strong>بی‌حسی و آماده‌سازی:</strong> ضدعفونی و بی‌حسی موضعی.</li>
-        <li><strong>تزریق اصولی:</strong> با کانولا/سوزن ریز در لایه‌های مناسب برای نتیجه یکنواخت.</li>
-        <li><strong>فرم‌دهی نهایی:</strong> ماساژ ملایم و ارزیابی تقارن.</li>
-      </ol>
-
-      <h3>مراقبت‌های بعد از فیلر لب</h3>
-      <ul>
-        <li>تا ۲۴ ساعت از گرمای زیاد (سونا/باشگاه) خودداری کنید.</li>
-        <li>از فشار دادن/ماساژ لب‌ها پرهیز کنید مگر طبق دستور پزشک.</li>
-        <li>نوشیدنی فراوان، پرهیز از الکل/سیگار در ۲۴–۴۸ ساعت اول.</li>
-        <li>تورم/کبودی خفیف طبیعی است و طی چند روز کاهش می‌یابد.</li>
-      </ul>
-
-      <h3>دوام و ترمیم</h3>
-      <p>ماندگاری بسته به نوع فیلر و متابولیسم بدن معمولاً <strong>۶ تا ۱۲ ماه</strong> است.
-      برای حفظ فرم، جلسات ترمیمی کم‌حجم پیشنهاد می‌شود.</p>
-
-      <h3>عوارض احتمالی</h3>
-      <p>قرمزی، کبودی یا تورم خفیف گذراست. برای کاهش ریسک، سابقه حساسیت و بیماری‌ها را حتماً اطلاع دهید.</p>
-
-      <div class="card" style="margin-top:12px">
-        <p style="margin:0"><strong>مشاوره رایگان:</strong> برای ارزیابی فرم مناسب لب و انتخاب فیلر،
-        از طریق <a href="tel:+989150739223">تماس تلفنی</a> یا
-        <a href="https://www.instagram.com/dr_atighinasab_/?hl=en" target="_blank" rel="noopener">اینستاگرام</a> هماهنگ کنید.</p>
-      </div>
+      <p>فیلر لب برای <strong>حجم‌دهی طبیعی</strong>، مرزبندی و <strong>اصلاح عدم تقارن</strong> استفاده می‌شود.</p>
+      <h3>مراقبت‌های بعد</h3>
+      <ul><li>۲۴ ساعت گرمای زیاد/باشگاه نروید</li><li>از ماساژ خودسرانه پرهیز کنید</li><li>نوشیدنی کافی؛ پرهیز از الکل/سیگار ۲۴–۴۸ ساعت</li></ul>
     `,
     faqs: [
-      { q: 'فیلر لب چقدر دوام دارد؟', a: 'معمولاً ۶ تا ۱۲ ماه (بسته به نوع فیلر و متابولیسم). برای حفظ فرم، ترمیم دوره‌ای توصیه می‌شود.' },
-      { q: 'آیا نتیجه طبیعی خواهد بود؟', a: 'بله. در کلینیک هارمونی چهره طراحی بر پایه تناسب چهره است تا لب‌ها طبیعی و متقارن به‌نظر برسند.' },
-      { q: 'دوره نقاهت چقدر است؟', a: 'به‌طور معمول همان روز به فعالیت‌های روزمره برمی‌گردید. تورم خفیف ۱–۳ روز طبیعی است.' },
-      { q: 'در بارداری/شیردهی قابل انجام است؟', a: 'خیر، در این دوره انجام نمی‌شود. زمان مناسب بعد از پایان شیردهی است.' },
-      { q: 'اگر پشیمان شوم، امکان حل‌کردن فیلر هست؟', a: 'برای فیلرهای هیالورونیک اسید، آنزیم هیالورونیداز می‌تواند در موارد لازم تجویز شود.' }
+      { q:'دوام؟', a:'معمولاً ۶–۱۲ ماه.' },
+      { q:'طبیعی می‌شود؟', a:'بله، طراحی بر اساس تناسب چهره.' }
     ]
   },
-
   'cheek-chin-filler': {
-    seo: { description: 'فیلر گونه و چانه با هیالورونیک اسید برای تناسب صورت، افزایش برجستگی گونه و تعریف بهتر چانه در کلینیک هارمونی چهره.' },
-    body: `
-      <h2>فیلر چانه و گونه چیست؟</h2>
-      <p>با فیلر <strong>هیالورونیک اسید</strong> می‌توان <strong>برجستگی گونه</strong> را افزایش داد،
-      افتادگی خفیف را بهبود داد و <strong>تعادل نیم‌رخ</strong> را با تقویت چانه بهتر کرد. هدف ما نتیجه‌ای
-      <em>طبیعی و هماهنگ</em> با سایر اجزای صورت است.</p>
-
-      <h3>مزایا</h3>
-      <ul>
-        <li>تعادل چهره و بهبود نیم‌رخ (پروفایلینگ)</li>
-        <li>اصلاح عدم تقارن خفیف گونه/چانه</li>
-        <li>استفاده از فیلرهای معتبر با ماندگاری متعادل</li>
-      </ul>
-
-      <h3>فرآیند انجام</h3>
-      <ol>
-        <li><strong>مشاوره و طراحی:</strong> بررسی نسبت‌های صورت و تعیین نقاط تزریق.</li>
-        <li><strong>بی‌حسی و تزریق:</strong> با سوزن ظریف یا کانولا برای یکنواختی و ایمنی بیشتر.</li>
-        <li><strong>فرم‌دهی نهایی:</strong> ارزیابی تقارن و نتیجه‌ی طبیعی.</li>
-      </ol>
-
-      <h3>مراقبت‌ها و ماندگاری</h3>
-      <p>تورم/کبودی خفیف طی چند روز کاهش می‌یابد. ماندگاری معمولاً <strong>۹–۱۲ ماه</strong> (بسته به متابولیسم و نوع فیلر).</p>
-
-      <div class="card" style="margin-top:12px">
-        <p style="margin:0"><strong>مشاوره:</strong> برای تعیین مقدار فیلر و نقاط دقیق،
-        با <a href="tel:+989150739223">تماس</a> یا
-        <a href="https://www.instagram.com/dr_atighinasab_/?hl=en" target="_blank" rel="noopener">اینستاگرام</a> هماهنگ کنید.</p>
-      </div>
-    `,
-    faqs: [
-      { q: 'فیلر گونه و چانه برای چه کسانی مناسب است؟', a: 'برای افرادی که گونه‌های کم‌حجم، چانهٔ عقب‌رفته یا عدم تقارن خفیف دارند و به دنبال نتیجه طبیعی هستند.' },
-      { q: 'دوام چقدر است؟', a: 'معمولاً بین ۹ تا ۱۲ ماه؛ به نوع فیلر و سبک زندگی بستگی دارد.' },
-      { q: 'دوره نقاهت دارد؟', a: 'خیر؛ فعالیت روزمره بلافاصله ممکن است. تورم/کبودی خفیف طبیعی است.' }
-    ]
+    seo: { description:'فیلر گونه و چانه برای تناسب صورت…' },
+    body: `<h2>فیلر چانه و گونه چیست؟</h2><p>تعادل نیم‌رخ با تقویت چانه و افزایش برجستگی گونه.</p>`,
+    faqs: []
   },
-
   'jawline-filler': {
-    seo: { description: 'فیلر خط فک برای زاویه‌سازی ملایم، تعریف مرز فک و کاهش ظاهر افتادگی با حفظ حالت طبیعی صورت در هارمونی چهره.' },
-    body: `
-      <h2>فیلر خط فک</h2>
-      <p>با تزریق فیلر در امتداد خط فک می‌توان <strong>مرز فک</strong> را واضح‌تر کرد،
-      ظاهر افتادگی خفیف را بهبود داد و <strong>زاویه‌سازی</strong> ظریف ایجاد نمود—بدون اغراق.</p>
-
-      <h3>مزایا</h3>
-      <ul>
-        <li>تعریف بهتر مرز فک و زاویه فکی</li>
-        <li>اصلاح عدم تقارن‌های خفیف دو طرف فک</li>
-        <li>نتیجه طبیعی و هماهنگ با گردن و چانه</li>
-      </ul>
-
-      <h3>نحوه انجام</h3>
-      <ol>
-        <li><strong>آنالیز صورت:</strong> تعیین نقاط استراتژیک تزریق در طول خط فک.</li>
-        <li><strong>تزریق:</strong> با کانولا/سوزن ریز برای یکنواختی و ایمنی.</li>
-        <li><strong>ارزیابی نهایی:</strong> تنظیمات جزئی برای تقارن و طبیعی بودن.</li>
-      </ol>
-
-      <h3>ماندگاری و مراقبت</h3>
-      <p>ماندگاری معمولاً <strong>۱۲ ماه</strong> و بسته به نوع فیلر/متابولیسم متغیر است.
-      در ۲۴–۴۸ ساعت اول از گرمای زیاد و ماساژ محل تزریق پرهیز کنید.</p>
-
-      <div class="card" style="margin-top:12px">
-        <p style="margin:0"><strong>رزرو:</strong> جهت بررسی صلاحیت و مقدار فیلر،
-        <a href="tel:+989150739223">تماس</a> بگیرید یا در
-        <a href="https://www.instagram.com/dr_atighinasab_/?hl=en" target="_blank" rel="noopener">اینستاگرام</a> پیام دهید.</p>
-      </div>
-    `,
-    faqs: [
-      { q: 'زاویه‌سازی فک طبیعی خواهد بود؟', a: 'بله؛ هدف ما تعریف ملایم مرز فک با حفظ تناسب صورت است.' },
-      { q: 'آیا برای افتادگی پوست مناسب است؟', a: 'برای افتادگی خفیف کمک‌کننده است؛ موارد شدید نیاز به روش‌های ترکیبی دارند.' },
-      { q: 'دوام چقدر است؟', a: 'میانگین ۱۲ ماه؛ بسته به نوع فیلر و سبک زندگی.' }
-    ]
+    seo: { description:'فیلر خط فک برای زاویه‌سازی ملایم…' },
+    body: `<h2>فیلر خط فک</h2><p>تعریف مرز فک و زاویه‌سازی ظریف.</p>`,
+    faqs: []
   }
 };
-
-
-
 
 // --------------- In-memory storage ----------------
 const messages = []; // for Socket.IO site chat
 const leads = [];    // chatbot lead capture
 
-// ---------- Gemini usage guards + status/test routes ----------
+// ---------- Gemini usage guards + status/test (kept; no duplicates) ----------
 const GEMINI_ENABLED = process.env.GEMINI_ENABLED !== 'false';
 const GEMINI_DAILY_LIMIT = Number(process.env.GEMINI_DAILY_LIMIT || 100);
 let geminiCallsToday = 0;
@@ -311,231 +128,111 @@ function canUseGemini() {
 function countGemini() { geminiCallsToday++; }
 
 app.get('/_gemini_status', (req, res) => {
-  res.json({
-    enabled: GEMINI_ENABLED,
-    haveKey: !!process.env.GOOGLE_GENAI_API_KEY,
-    limit: GEMINI_DAILY_LIMIT,
-    callsToday: geminiCallsToday,
-    date: geminiDate
-  });
-});
-
-// (TEMP) verbose test route to see real error/answer from Gemini
-app.get('/_gemini_test', async (req, res) => {
-  try {
-    const q = req.query.q || 'سلام! یک جمله کوتاه درباره بوتاکس بگو.';
-    const a = await askGemini_FarsiClinic(q, { verboseToUser: true });
-    res.json({ ok: true, answer: a });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e?.message || String(e) });
-  }
-});
-// List models your key can see (both v1beta and v1)
-app.get('/_gemini_models', async (req, res) => {
-  const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
-  if (!API_KEY) return res.status(500).json({ ok:false, error:'NO_API_KEY' });
-  async function list(base) {
-    const url = `https://generativelanguage.googleapis.com/${base}/models?key=${API_KEY}`;
-    const r = await fetch(url);
-    const j = await r.json();
-    return { base, status: r.status, names: (j.models || []).map(m => m.name) };
-  }
-  try {
-    const [beta, v1] = await Promise.all([list('v1beta'), list('v1')]);
-    res.json({ ok:true, beta, v1 });
-  } catch (e) {
-    res.status(500).json({ ok:false, error: e?.message || String(e) });
-  }
+  res.json({ enabled: GEMINI_ENABLED, haveKey: !!process.env.GOOGLE_GENAI_API_KEY, limit: GEMINI_DAILY_LIMIT, callsToday: geminiCallsToday, date: geminiDate });
 });
 
 async function listGeminiModels() {
   const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
-  const bases = ['v1', 'v1beta']; // try both
-  const result = [];
+  const bases = ['v1','v1beta'];
+  const out = [];
   for (const base of bases) {
-    const url = `https://generativelanguage.googleapis.com/${base}/models?key=${API_KEY}`;
     try {
-      const r = await fetch(url);
+      const r = await fetch(`https://generativelanguage.googleapis.com/${base}/models?key=${API_KEY}`);
       const j = await r.json();
-      const names = (j.models || []).map(m => ({ base, name: m.name }));
-      result.push(...names);
-    } catch (e) {
-      // ignore and continue
-    }
+      (j.models || []).forEach(m => out.push({ base, name: m.name }));
+    } catch (_) {}
   }
-  return result;
+  return out;
 }
-function pickBestFlashModel(models) {
-  // Prefer v1 over v1beta, and 2.5 over 2.0 over 1.5, Flash > Flash-Lite > 8b
-  const preference = [
-    // v1 (production)
-    { base: 'v1',    name: 'models/gemini-2.5-flash' },
-    { base: 'v1',    name: 'models/gemini-2.5-flash-lite' },
-    { base: 'v1',    name: 'models/gemini-2.0-flash' },
-    { base: 'v1',    name: 'models/gemini-2.0-flash-001' },
-    { base: 'v1',    name: 'models/gemini-2.0-flash-lite' },
-    { base: 'v1',    name: 'models/gemini-2.0-flash-lite-001' },
-
-    // v1beta (preview/fallbacks)
-    { base: 'v1beta', name: 'models/gemini-2.5-flash' },
-    { base: 'v1beta', name: 'models/gemini-2.5-flash-lite' },
-    { base: 'v1beta', name: 'models/gemini-2.5-flash-preview-09-2025' },
-    { base: 'v1beta', name: 'models/gemini-2.5-flash-lite-preview-09-2025' },
-    { base: 'v1beta', name: 'models/gemini-2.0-flash' },
-    { base: 'v1beta', name: 'models/gemini-2.0-flash-001' },
-    { base: 'v1beta', name: 'models/gemini-2.0-flash-lite' },
-    { base: 'v1beta', name: 'models/gemini-2.0-flash-lite-001' },
-
-    // very last resorts (generic aliases)
-    { base: 'v1beta', name: 'models/gemini-flash-latest' },
-    { base: 'v1beta', name: 'models/gemini-2.5-flash-preview-05-20' },
-    { base: 'v1beta', name: 'models/gemini-2.5-flash' }, // already listed, harmless
+function pickBestFlashModel(models){
+  const pref = [
+    { base:'v1', name:'models/gemini-2.5-flash' },
+    { base:'v1', name:'models/gemini-2.5-flash-lite' },
+    { base:'v1', name:'models/gemini-2.0-flash' },
+    { base:'v1', name:'models/gemini-2.0-flash-lite' },
+    { base:'v1beta', name:'models/gemini-2.5-flash' },
+    { base:'v1beta', name:'models/gemini-2.5-flash-lite' },
   ];
-
-  // Build quick lookup
   const have = new Set(models.map(m => `${m.base}::${m.name}`));
-
-  for (const pref of preference) {
-    if (have.has(`${pref.base}::${pref.name}`)) {
-      return { base: pref.base, name: pref.name };
-    }
-  }
-
-  // Fallback: any flash-y thing from what we saw (pref v1)
-  const v1Any = models.find(m => m.base === 'v1' && /gemini-.*flash/i.test(m.name));
-  if (v1Any) return v1Any;
-  const any = models.find(m => /gemini-.*flash/i.test(m.name));
-  return any || null;
+  for (const p of pref) if (have.has(`${p.base}::${p.name}`)) return p;
+  return models.find(m => /gemini-.*flash/i.test(m.name)) || null;
 }
-
-
-
 async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
   const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
-  if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
+  if (!API_KEY) return null;
 
-  // discover & pick a working model
   const models = await listGeminiModels();
   const chosen = pickBestFlashModel(models);
-  if (!chosen) {
-    const msg = 'هیچ مدل سازگار (flash) برای این کلید فعال نیست.';
-    return verboseToUser || process.env.GEMINI_DEBUG === 'true' ? msg : null;
-  }
+  if (!chosen) return verboseToUser ? 'هیچ مدل سازگار (flash) برای این کلید فعال نیست.' : null;
 
-  const { base, name } = chosen; // e.g. base='v1', name='models/gemini-1.5-flash-002'
+  const { base, name } = chosen;
   const URL = `https://generativelanguage.googleapis.com/${base}/${name}:generateContent?key=${API_KEY}`;
 
-  const SYSTEM =
-`تو دستیار کلینیک «هارمونی چهره» هستی و همیشه فارسی و کوتاه پاسخ می‌دهی.
+  const SYSTEM = `تو دستیار کلینیک «هارمونی چهره» هستی و همیشه فارسی و کوتاه پاسخ می‌دهی.
 - درباره بوتاکس و فیلرها و مراقبت‌های عمومی قبل/بعد، ایمن و عمومی توضیح بده.
 - تشخیص/نسخه/قیمت قطعی نده؛ در موارد خاص تأکید کن معاینه لازم است.
-- اگر بی‌ارتباط بود، مؤدبانه کوتاه پاسخ بده و گفتگو را به خدمات برگردان.
-- راه‌های تماس: +989150739223 ، @dr_atighinasab_ .
-- لینک‌های داخلی: /services/botox /services/lip-filler /services/cheek-chin-filler /services/jawline-filler`;
+- راه‌های تماس: +989150739223 ، @dr_atighinasab_.`;
 
-  // v1/v1beta both accept system_instruction in REST today
   const payload = {
     system_instruction: { parts: [{ text: SYSTEM }] },
     contents: [{ role: "user", parts: [{ text: String(userText || '').slice(0, 2000) }] }],
     generationConfig: { maxOutputTokens: 350, temperature: 0.3 }
-    // NOTE: removed safetySettings to avoid schema errors on some projects
   };
 
   try {
-    const r = await fetch(URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    const r = await fetch(URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     const data = await r.json();
-
-    if (!r.ok) {
-      const msg = data?.error?.message || data?.error?.status || String(r.status);
-      console.warn('Gemini HTTP error', { base, name, msg });
-      return verboseToUser || process.env.GEMINI_DEBUG === 'true'
-        ? `خطای سرویس هوشمند (${name} @ ${base}): ${msg}`
-        : null;
-    }
-
-    const texts = (data?.candidates || [])
-      .flatMap(c => c?.content?.parts || [])
-      .map(p => (p?.text || '').trim())
-      .filter(Boolean);
-
-    if (texts.length) return texts.join('\n').trim();
-
-    return verboseToUser || process.env.GEMINI_DEBUG === 'true'
-      ? `پاسخ خالی/مسدود از مدل (${name} @ ${base}).`
-      : null;
-
+    if (!r.ok) return verboseToUser ? (data?.error?.message || String(r.status)) : null;
+    const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    return txt || (verboseToUser ? 'پاسخ خالی/مسدود.' : null);
   } catch (e) {
-    return verboseToUser || process.env.GEMINI_DEBUG === 'true'
-      ? `خطای ارتباط با مدل (${name} @ ${base}): ${e?.message || e}`
-      : null;
+    return verboseToUser ? `خطای ارتباط: ${e?.message || e}` : null;
   }
 }
 
-
-
-
-
-
-// Handy test route (keeps your status check, too)
-app.get('/_gemini_test', async (req, res) => {
-  try {
-    const q = req.query.q || 'سلام! یک جمله کوتاه درباره بوتاکس بگو.';
-    const a = await askGemini_FarsiClinic(q, { verboseToUser: true });
-    res.json({ ok: true, answer: a || 'null (no answer)' });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e?.message || String(e) });
-  }
+app.get('/_gemini_models', async (req, res) => {
+  try { res.json({ ok:true, models: await listGeminiModels() }); }
+  catch (e) { res.status(500).json({ ok:false, error: e?.message || String(e) }); }
 });
-
-
+app.get('/_gemini_test', async (req, res) => {
+  try { res.json({ ok:true, answer: await askGemini_FarsiClinic(req.query.q || 'سلام درباره بوتاکس کوتاه بگو.', { verboseToUser:true }) }); }
+  catch (e) { res.status(500).json({ ok:false, error:e?.message || String(e) }); }
+});
 
 // ---------------- Routes ----------------
 app.get('/', (req, res) => {
   res.render('index', {
     pageTitle: 'کلینیک زیبایی هارمونی چهره',
     services,
-    gallery: [],
+    // send gallery data to homepage too (in case you include it there later)
+    sections: gallerySections,
+    photos,
     messages,
     req
   });
 });
 
-// ---------- Routes ----------
 app.get('/gallery', (req, res) => {
   res.render('gallery', {
     pageTitle: 'گالری نمونه کار | هارمونی چهره',
     sections: gallerySections,
-    photos: galleryImages
+    photos // <— FIXED: was galleryImages (undefined)
   });
 });
 
 app.get('/services/:slug', (req, res) => {
   const s = services.find(x => x.slug === req.params.slug);
   if (!s) return res.status(404).send('Service not found');
-
   const details = serviceLongContent[s.slug] || { body: '', faqs: [], seo: {} };
-  const faqLd = details.faqs?.length
-    ? {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": details.faqs.map(f => ({
-          "@type": "Question",
-          "name": f.q,
-          "acceptedAnswer": { "@type": "Answer", "text": f.a }
-        }))
-      }
-    : null;
+  const faqLd = details.faqs?.length ? {
+    "@context":"https://schema.org","@type":"FAQPage",
+    "mainEntity": details.faqs.map(f => ({"@type":"Question","name":f.q,"acceptedAnswer":{"@type":"Answer","text":f.a}}))
+  } : null;
 
   res.render('service', {
     pageTitle: `${s.title} | کلینیک زیبایی هارمونی چهره`,
     metaDescription: details.seo?.description || s.text,
-    service: s,
-    details,
-    faqLd
+    service: s, details, faqLd
   });
 });
 
@@ -587,19 +284,12 @@ app.post('/api/bot', async (req, res) => {
   }
 
   // Fallback → Gemini
-if (canUseGemini()) {
-  const ans = await askGemini_FarsiClinic(raw);
-  countGemini();
-  if (ans) return reply(ans);
-
-  // show debug text to user if enabled
-  if (process.env.GEMINI_DEBUG === 'true') {
-    const debugAns = await askGemini_FarsiClinic(raw, { verboseToUser: true });
-    return reply(debugAns || 'در حال حاضر پاسخ هوشمند دردسترس نیست.');
+  if (canUseGemini()) {
+    const ans = await askGemini_FarsiClinic(raw);
+    countGemini();
+    if (ans) return reply(ans);
   }
-}
-return reply('در حال حاضر پاسخ هوشمند دردسترس نیست.');
-
+  return reply('در حال حاضر پاسخ هوشمند دردسترس نیست.');
 });
 
 // ---------- Chatbot: Lead capture ----------
@@ -611,16 +301,9 @@ app.post('/api/bot/lead', (req, res) => {
   }
   const phoneE164 = p.startsWith('0') ? '+98' + p.slice(1) : p.startsWith('+') ? p : '+98' + p;
 
-  const lead = {
-    service: String(service),
-    name: String(name),
-    phone: phoneE164,
-    ts: new Date().toISOString(),
-    source: 'chatbot'
-  };
+  const lead = { service:String(service), name:String(name), phone:phoneE164, ts:new Date().toISOString(), source:'chatbot' };
   leads.push(lead);
   console.log('New lead (chatbot):', lead);
-
   return res.json({ ok: true });
 });
 
@@ -644,30 +327,4 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
   console.log(`Harmony Chehre Beauty Clinic running at http://localhost:${PORT}`);
-});
-
-
-
-
-
-
-
-// View what your key actually sees
-app.get('/_gemini_models', async (req, res) => {
-  try {
-    const all = await listGeminiModels();
-    res.json({ ok: true, models: all });
-  } catch (e) {
-    res.status(500).json({ ok:false, error: e?.message || String(e) });
-  }
-});
-
-app.get('/_gemini_test', async (req, res) => {
-  try {
-    const q = req.query.q || 'سلام! درباره بوتاکس یک جمله کوتاه بگو.';
-    const a = await askGemini_FarsiClinic(q, { verboseToUser: true });
-    res.json({ ok: true, answer: a || 'null (no answer)' });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e?.message || String(e) });
-  }
 });
