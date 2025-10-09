@@ -199,18 +199,7 @@ app.get('/_gemini_test', async (req, res) => {
   catch (e) { res.status(500).json({ ok:false, error:e?.message || String(e) }); }
 });
 
-// ---------------- Routes ----------------
-app.get('/', (req, res) => {
-  res.render('index', {
-    pageTitle: 'کلینیک زیبایی هارمونی چهره',
-    services,
-    // send gallery data to homepage too (in case you include it there later)
-    sections: gallerySections,
-    photos,
-    messages,
-    req
-  });
-});
+
 
 app.get('/gallery', (req, res) => {
   res.render('gallery', {
