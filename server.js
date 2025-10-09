@@ -21,8 +21,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json()); // <-- needed for /api/bot and /api/bot/lead
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // MUST be enabled before /api/bot
+
 
 // --- HTTP + Socket.IO ---
 const http = require('http').createServer(app);
@@ -330,7 +329,7 @@ app.get('/_gemini_status', (req, res) => {
 });
 
 // ---------- Gemini fallback (REST; no SDK) with retries + logging ----------
-async function askGemini_FarsiClinic(userText) {
+async function askGemini_FarsiClinic(userText, {verboseToUser = false} = {}) {
   const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
   if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
 
@@ -339,7 +338,7 @@ async function askGemini_FarsiClinic(userText) {
 - خدمات زیبایی (بوتاکس، فیلر لب/گونه/چانه/خط فک) و مراقبت‌های عمومی قبل/بعد را ایمن توضیح بده.
 - تشخیص/نسخه/قیمت قطعی نده؛ در موارد خاص تأکید کن معاینه لازم است.
 - اگر بی‌ربط بود، مؤدبانه کوتاه پاسخ بده و گفتگو را به خدمات برگردان.
-- راه‌های تماس (در صورت مرتبط بودن): +989150739223 ، @dr_atighinasab_ .
+- راه‌های تماس: +989150739223 ، @dr_atighinasab_ .
 - لینک‌های داخلی: /services/botox /services/lip-filler /services/cheek-chin-filler /services/jawline-filler`;
 
   const payload = {
@@ -367,20 +366,33 @@ async function askGemini_FarsiClinic(userText) {
 
       if (!r.ok) {
         console.error('Gemini HTTP error', r.status, { model, data });
-        continue; // try next
+        if (verboseToUser) {
+          const msg = data?.error?.message || data?.error?.status || String(r.status);
+          return `خطای سرویس هوشمند (${model}): ${msg}`;
+        }
+        continue; // try next model
       }
 
       const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (txt) return txt;
 
       console.warn('Gemini empty/blocked response', { model, data });
+      if (verboseToUser) {
+        return `پاسخ خالی/مسدود از مدل (${model}).`;
+      }
+      // try next
     } catch (e) {
       console.error('Gemini fetch error', { model, error: e?.message || e });
+      if (verboseToUser) {
+        return `خطای ارتباط با مدل (${model}): ${e?.message || e}`;
+      }
+      // try next
     }
   }
 
   return 'در حال حاضر پاسخ هوشمند دردسترس نیست.';
 }
+
 
 // ---------- Chatbot: FAQ / intents ----------
 app.post('/api/bot', async (req, res) => {
