@@ -3,25 +3,21 @@ const path = require('path');
 const express = require('express');
 const app = express();
 
-// Templating (EJS + ejs-mate layouts)
+// Templates (EJS + ejs-mate)
 const engine = require('ejs-mate');
 app.engine('ejs', engine);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// fetch polyfill for Node < 18
+// fetch polyfill for Node < 18 (safe on >=18 too)
 const fetch = global.fetch || ((...args) => import('node-fetch').then(m => m.default(...args)));
 
-
-// Trust proxy (Render/Reverse proxies)
 app.set('trust proxy', 1);
 
-// Static + parsers
+// Static + parsers (must be before routes)
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // <-- needed for /api/bot and /api/bot/lead
-
-
+app.use(express.json()); // needed for /api/bot and /api/bot/lead
 
 // --- HTTP + Socket.IO ---
 const http = require('http').createServer(app);
@@ -34,7 +30,7 @@ const services = [
     slug: 'botox',
     title: 'بوتاکس (تزریق بوتولینوم)',
     text: 'کاهش خطوط پیشانی، اخم و پنجه‌کلاغی با نتیجه طبیعی و بدون حالت یخ‌زده.',
-    cover: '/images/services/botox.jpg' // مطمئن شو فایل دقیقاً با همین نام هست (حساس به حروف)
+    cover: '/images/services/botox.jpg'
   },
   {
     id: 'cheek-chin',
@@ -173,10 +169,7 @@ const serviceLongContent = {
   },
 
   'cheek-chin-filler': {
-    seo: {
-      description:
-        'فیلر گونه و چانه با هیالورونیک اسید برای تناسب صورت، افزایش برجستگی گونه و تعریف بهتر چانه در کلینیک هارمونی چهره.'
-    },
+    seo: { description: 'فیلر گونه و چانه با هیالورونیک اسید برای تناسب صورت، افزایش برجستگی گونه و تعریف بهتر چانه در کلینیک هارمونی چهره.' },
     body: `
       <h2>فیلر چانه و گونه چیست؟</h2>
       <p>با فیلر <strong>هیالورونیک اسید</strong> می‌توان <strong>برجستگی گونه</strong> را افزایش داد،
@@ -214,10 +207,7 @@ const serviceLongContent = {
   },
 
   'jawline-filler': {
-    seo: {
-      description:
-        'فیلر خط فک برای زاویه‌سازی ملایم، تعریف مرز فک و کاهش ظاهر افتادگی با حفظ حالت طبیعی صورت در هارمونی چهره.'
-    },
+    seo: { description: 'فیلر خط فک برای زاویه‌سازی ملایم، تعریف مرز فک و کاهش ظاهر افتادگی با حفظ حالت طبیعی صورت در هارمونی چهره.' },
     body: `
       <h2>فیلر خط فک</h2>
       <p>با تزریق فیلر در امتداد خط فک می‌توان <strong>مرز فک</strong> را واضح‌تر کرد،
@@ -255,9 +245,98 @@ const serviceLongContent = {
   }
 };
 
-// --------------- Chat storage ----------------
-const messages = []; // for /socket.io simple site chat
-const leads = [];    // chatbot lead capture (in-memory)
+// --------------- In-memory storage ----------------
+const messages = []; // for Socket.IO site chat
+const leads = [];    // chatbot lead capture
+
+// ---------- Gemini usage guards + status/test routes ----------
+const GEMINI_ENABLED = process.env.GEMINI_ENABLED !== 'false';
+const GEMINI_DAILY_LIMIT = Number(process.env.GEMINI_DAILY_LIMIT || 100);
+let geminiCallsToday = 0;
+let geminiDate = new Date().toDateString();
+
+function canUseGemini() {
+  const today = new Date().toDateString();
+  if (today !== geminiDate) { geminiDate = today; geminiCallsToday = 0; }
+  return GEMINI_ENABLED && !!process.env.GOOGLE_GENAI_API_KEY && geminiCallsToday < GEMINI_DAILY_LIMIT;
+}
+function countGemini() { geminiCallsToday++; }
+
+app.get('/_gemini_status', (req, res) => {
+  res.json({
+    enabled: GEMINI_ENABLED,
+    haveKey: !!process.env.GOOGLE_GENAI_API_KEY,
+    limit: GEMINI_DAILY_LIMIT,
+    callsToday: geminiCallsToday,
+    date: geminiDate
+  });
+});
+
+// (TEMP) verbose test route to see real error/answer from Gemini
+app.get('/_gemini_test', async (req, res) => {
+  try {
+    const q = req.query.q || 'سلام! یک جمله کوتاه درباره بوتاکس بگو.';
+    const a = await askGemini_FarsiClinic(q, { verboseToUser: true });
+    res.json({ ok: true, answer: a });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+});
+
+// ---------- Gemini helper ----------
+async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
+  const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
+  if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
+
+  const SYSTEM =
+`تو دستیار کلینیک «هارمونی چهره» هستی و همیشه فارسی و کوتاه پاسخ می‌دهی.
+- خدمات زیبایی (بوتاکس، فیلر لب/گونه/چانه/خط فک) و مراقبت‌های عمومی قبل/بعد را ایمن توضیح بده.
+- تشخیص/نسخه/قیمت قطعی نده؛ در موارد خاص تأکید کن معاینه لازم است.
+- اگر بی‌ربط بود، مؤدبانه کوتاه پاسخ بده و گفتگو را به خدمات برگردان.
+- راه‌های تماس (در صورت مرتبط بودن): +989150739223 ، @dr_atighinasab_ .
+- لینک‌های داخلی: /services/botox /services/lip-filler /services/cheek-chin-filler /services/jawline-filler`;
+
+  const payload = {
+    contents: [
+      { role: "user", parts: [{ text: `${SYSTEM}\n\nپرسش کاربر:\n${String(userText||'').slice(0,2000)}` }] }
+    ],
+    generationConfig: { maxOutputTokens: 350, temperature: 0.3 }
+  };
+
+  const models = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash-8b"];
+
+  for (const model of models) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await r.json();
+
+      if (!r.ok) {
+        console.error('Gemini HTTP error', r.status, { model, data });
+        if (verboseToUser) {
+          const msg = data?.error?.message || data?.error?.status || String(r.status);
+          return `خطای سرویس هوشمند (${model}): ${msg}`;
+        }
+        continue;
+      }
+
+      const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (txt) return txt;
+
+      console.warn('Gemini empty/blocked response', { model, data });
+      if (verboseToUser) return `پاسخ خالی/مسدود از مدل (${model}).`;
+    } catch (e) {
+      console.error('Gemini fetch error', { model, error: e?.message || e });
+      if (verboseToUser) return `خطای ارتباط با مدل (${model}): ${e?.message || e}`;
+    }
+  }
+
+  return 'در حال حاضر پاسخ هوشمند دردسترس نیست.';
+}
 
 // ---------------- Routes ----------------
 app.get('/', (req, res) => {
@@ -301,98 +380,6 @@ app.post('/contact', (req, res) => {
   console.log('Contact form:', { name, phone, message });
   return res.redirect('/#contact-success');
 });
-
-
-
-
-// ---------- Gemini usage guards + status route ----------
-const GEMINI_ENABLED = process.env.GEMINI_ENABLED !== 'false';
-const GEMINI_DAILY_LIMIT = Number(process.env.GEMINI_DAILY_LIMIT || 100);
-let geminiCallsToday = 0;
-let geminiDate = new Date().toDateString();
-
-function canUseGemini() {
-  const today = new Date().toDateString();
-  if (today !== geminiDate) { geminiDate = today; geminiCallsToday = 0; }
-  return GEMINI_ENABLED && !!process.env.GOOGLE_GENAI_API_KEY && geminiCallsToday < GEMINI_DAILY_LIMIT;
-}
-function countGemini() { geminiCallsToday++; }
-
-app.get('/_gemini_status', (req, res) => {
-  res.json({
-    enabled: GEMINI_ENABLED,
-    haveKey: !!process.env.GOOGLE_GENAI_API_KEY,
-    limit: GEMINI_DAILY_LIMIT,
-    callsToday: geminiCallsToday,
-    date: geminiDate
-  });
-});
-
-// ---------- Gemini fallback (REST; no SDK) with retries + logging ----------
-async function askGemini_FarsiClinic(userText, {verboseToUser = false} = {}) {
-  const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
-  if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
-
-  const SYSTEM =
-`تو دستیار کلینیک «هارمونی چهره» هستی و همیشه فارسی و کوتاه پاسخ می‌دهی.
-- خدمات زیبایی (بوتاکس، فیلر لب/گونه/چانه/خط فک) و مراقبت‌های عمومی قبل/بعد را ایمن توضیح بده.
-- تشخیص/نسخه/قیمت قطعی نده؛ در موارد خاص تأکید کن معاینه لازم است.
-- اگر بی‌ربط بود، مؤدبانه کوتاه پاسخ بده و گفتگو را به خدمات برگردان.
-- راه‌های تماس: +989150739223 ، @dr_atighinasab_ .
-- لینک‌های داخلی: /services/botox /services/lip-filler /services/cheek-chin-filler /services/jawline-filler`;
-
-  const payload = {
-    contents: [
-      { role: "user", parts: [{ text: `${SYSTEM}\n\nپرسش کاربر:\n${String(userText||'').slice(0,2000)}` }] }
-    ],
-    generationConfig: { maxOutputTokens: 350, temperature: 0.3 }
-  };
-
-  const models = [
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash-8b"
-  ];
-
-  for (const model of models) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
-    try {
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await r.json();
-
-      if (!r.ok) {
-        console.error('Gemini HTTP error', r.status, { model, data });
-        if (verboseToUser) {
-          const msg = data?.error?.message || data?.error?.status || String(r.status);
-          return `خطای سرویس هوشمند (${model}): ${msg}`;
-        }
-        continue; // try next model
-      }
-
-      const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (txt) return txt;
-
-      console.warn('Gemini empty/blocked response', { model, data });
-      if (verboseToUser) {
-        return `پاسخ خالی/مسدود از مدل (${model}).`;
-      }
-      // try next
-    } catch (e) {
-      console.error('Gemini fetch error', { model, error: e?.message || e });
-      if (verboseToUser) {
-        return `خطای ارتباط با مدل (${model}): ${e?.message || e}`;
-      }
-      // try next
-    }
-  }
-
-  return 'در حال حاضر پاسخ هوشمند دردسترس نیست.';
-}
-
 
 // ---------- Chatbot: FAQ / intents ----------
 app.post('/api/bot', async (req, res) => {
@@ -482,8 +469,6 @@ io.on('connection', (socket) => {
     io.emit('chat:broadcast', msg);
   });
 });
-
-
 
 // ---------------- Start ----------------
 const PORT = process.env.PORT || 3000;
