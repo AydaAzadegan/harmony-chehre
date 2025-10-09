@@ -282,8 +282,26 @@ app.get('/_gemini_test', async (req, res) => {
     res.status(500).json({ ok: false, error: e?.message || String(e) });
   }
 });
+// List models your key can see (both v1beta and v1)
+app.get('/_gemini_models', async (req, res) => {
+  const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
+  if (!API_KEY) return res.status(500).json({ ok:false, error:'NO_API_KEY' });
+  async function list(base) {
+    const url = `https://generativelanguage.googleapis.com/${base}/models?key=${API_KEY}`;
+    const r = await fetch(url);
+    const j = await r.json();
+    return { base, status: r.status, names: (j.models || []).map(m => m.name) };
+  }
+  try {
+    const [beta, v1] = await Promise.all([list('v1beta'), list('v1')]);
+    res.json({ ok:true, beta, v1 });
+  } catch (e) {
+    res.status(500).json({ ok:false, error: e?.message || String(e) });
+  }
+});
 
-// ---------- Gemini helper that tries multiple (endpoint, model) combos ----------
+
+// ---------- Gemini helper: discover models, then call generateContent ----------
 async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
   const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
   if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
@@ -303,52 +321,89 @@ async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
     generationConfig: { maxOutputTokens: 350, temperature: 0.3 }
   };
 
-  // Try a few stable combos (some projects enable a subset)
-  const tries = [
-    { base: 'v1',     model: 'gemini-1.5-flash-latest' },
-    { base: 'v1beta', model: 'gemini-1.5-flash-latest' },
-    { base: 'v1',     model: 'gemini-1.5-flash-8b-latest' },
-  ];
+  const API_Bases = ['v1beta', 'v1']; // try beta first (more widely available)
 
-  for (const t of tries) {
-    const url = `https://generativelanguage.googleapis.com/${t.base}/models/${t.model}:generateContent?key=${API_KEY}`;
+  // 1) fetch model list once (per request)
+  async function listModels(base) {
     try {
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await r.json();
+      const url = `https://generativelanguage.googleapis.com/${base}/models?key=${API_KEY}`;
+      const r = await fetch(url);
+      const j = await r.json();
+      if (!r.ok) return [];
+      return (j.models || []).map(m => m.name); // e.g. "models/gemini-1.5-flash-latest"
+    } catch { return []; }
+  }
 
-      if (!r.ok) {
-        const msg = data?.error?.message || data?.error?.status || String(r.status);
-        console.error('Gemini HTTP error', r.status, { endpoint: t.base, model: t.model, msg });
-        if (process.env.GEMINI_DEBUG === 'true' && verboseToUser) {
-          return `خطای سرویس هوشمند (${t.base}/${t.model}): ${msg}`;
-        }
-        // try next combo
-        continue;
-      }
-
-      const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (txt) return txt;
-
-      console.warn('Gemini empty/blocked response', { endpoint: t.base, model: t.model, data });
-      if (process.env.GEMINI_DEBUG === 'true' && verboseToUser) {
-        return `پاسخ خالی/مسدود از مدل (${t.base}/${t.model}).`;
-      }
-      // try next combo
-    } catch (e) {
-      console.error('Gemini fetch error', { endpoint: t.base, model: t.model, error: e?.message || e });
-      if (process.env.GEMINI_DEBUG === 'true' && verboseToUser) {
-        return `خطای ارتباط با مدل (${t.base}/${t.model}): ${e?.message || e}`;
-      }
-      // try next combo
+  // 2) Pick candidates: whatever your project lists, filtered to flash/pro families
+  let candidates = [];
+  for (const base of API_Bases) {
+    const names = await listModels(base);
+    if (names.length) {
+      const prefer = names.filter(n =>
+        /models\/gemini-1\.5-(flash|flash-8b|pro)/.test(n) && /latest/.test(n)
+      );
+      const fallbacks = [
+        'models/gemini-1.5-flash-latest',
+        'models/gemini-1.5-flash-8b-latest',
+        'models/gemini-1.5-pro-latest'
+      ];
+      // keep only those that actually exist in this base
+      const fbAvail = fallbacks.filter(f => names.includes(f));
+      candidates.push({ base, models: prefer.length ? prefer : fbAvail });
     }
   }
 
-  return null; // caller decides what to show
+  // 3) If nothing came back, try a static shortlist on v1beta (often enabled)
+  if (!candidates.length) {
+    candidates = [{ base:'v1beta', models:[
+      'models/gemini-1.5-flash-latest',
+      'models/gemini-1.5-flash-8b-latest',
+      'models/gemini-1.5-pro-latest'
+    ] }];
+  }
+
+  // 4) Try calling generateContent with each candidate
+  for (const c of candidates) {
+    for (const model of c.models) {
+      const url = `https://generativelanguage.googleapis.com/${c.base}/${model}:generateContent?key=${API_KEY}`;
+      try {
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await r.json();
+
+        if (!r.ok) {
+          const msg = data?.error?.message || data?.error?.status || String(r.status);
+          console.error('Gemini HTTP error', r.status, { base: c.base, model, msg });
+          if (process.env.GEMINI_DEBUG === 'true' && verboseToUser) {
+            return `خطای سرویس هوشمند (${c.base}/${model.replace('models/','')}): ${msg}`;
+          }
+          continue; // try next
+        }
+
+        const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (txt) return txt;
+
+        console.warn('Gemini empty/blocked response', { base: c.base, model, data });
+        if (process.env.GEMINI_DEBUG === 'true' && verboseToUser) {
+          return `پاسخ خالی/مسدود (${c.base}/${model.replace('models/','')}).`;
+        }
+        // try next
+      } catch (e) {
+        console.error('Gemini fetch error', { base: c.base, model, error: e?.message || e });
+        if (process.env.GEMINI_DEBUG === 'true' && verboseToUser) {
+          return `خطای ارتباط با مدل (${c.base}/${model.replace('models/','')}): ${e?.message || e}`;
+        }
+        // try next
+      }
+    }
+  }
+
+  return null; // caller shows fallback text
 }
+
 
 // Handy test route (keeps your status check, too)
 app.get('/_gemini_test', async (req, res) => {
