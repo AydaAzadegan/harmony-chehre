@@ -62,7 +62,7 @@ export default function Home() {
         <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
           {gallery.map((src,i)=>(
             <div key={i} className="relative aspect-[4/3] overflow-hidden rounded-2xl border" style={{borderColor:"var(--border)"}}>
-              <Image src={src} alt="نمونه کار کلینیک موس" fill className="object-cover" />
+              <Image src={src} alt="نمونه کار کلینیک هارمونی چهره" fill className="object-cover" />
             </div>
           ))}
         </div>

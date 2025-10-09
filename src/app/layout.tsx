@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "کلینیک زیبایی موس | Mos Beauty Clinic",
+  title: "کلینیک زیبایی هارمونی چهره | Harmony Chehre Beauty Clinic",
   description: "خدمات تخصصی پوست، لیزر، تزریقات، و فرم‌دهی. رزرو وقت و مشاوره.",
   openGraph: {
-    title: "کلینیک زیبایی موس",
+    title: "کلینیک زیبایی هارمونی چهره",
     description: "مشاوره رایگان و برنامه درمان اختصاصی.",
     type: "website",
   },

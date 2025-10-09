@@ -3,15 +3,15 @@
   "version": "1.0.0",
   "main": "server.js",
   "type": "commonjs",
-  "engines": { "node": ">=18 <23" },
   "scripts": {
-    "dev": "nodemon server.js",
     "start": "node server.js"
   },
   "dependencies": {
-    "ejs": "^3.1.9",
+    "ejs": "^3.1.10",
     "ejs-mate": "^4.0.0",
     "express": "^4.19.2",
-    "socket.io": "^4.7.5"
-  }
+    "socket.io": "^4.7.5",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": { "node": ">=18" }
 }

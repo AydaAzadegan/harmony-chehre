@@ -9,6 +9,10 @@ app.engine('ejs', engine);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// fetch polyfill for Node < 18
+const fetch = global.fetch || ((...args) => import('node-fetch').then(m => m.default(...args)));
+
+
 // Trust proxy (Render/Reverse proxies)
 app.set('trust proxy', 1);
 
@@ -302,14 +306,6 @@ app.post('/contact', (req, res) => {
 
 
 
-
-// ---------- (safety) ensure globals exist so we don't crash ----------
-global.messages = global.messages || [];
-const messages = global.messages;
-
-global.leads = global.leads || [];
-const leads = global.leads;
-
 // ---------- Gemini usage guards + status route ----------
 const GEMINI_ENABLED = process.env.GEMINI_ENABLED !== 'false';
 const GEMINI_DAILY_LIMIT = Number(process.env.GEMINI_DAILY_LIMIT || 100);
@@ -323,7 +319,6 @@ function canUseGemini() {
 }
 function countGemini() { geminiCallsToday++; }
 
-// Quick status check (open in browser): /_gemini_status
 app.get('/_gemini_status', (req, res) => {
   res.json({
     enabled: GEMINI_ENABLED,
@@ -354,7 +349,6 @@ async function askGemini_FarsiClinic(userText) {
     generationConfig: { maxOutputTokens: 350, temperature: 0.3 }
   };
 
-  // Try a few model IDs (some projects allow only certain aliases)
   const models = [
     "gemini-1.5-flash",
     "gemini-1.5-flash-latest",
@@ -373,22 +367,18 @@ async function askGemini_FarsiClinic(userText) {
 
       if (!r.ok) {
         console.error('Gemini HTTP error', r.status, { model, data });
-        // 400 invalid payload/model, 403 permission/billing/region, 429 quota, 5xx service
-        continue; // try next model
+        continue; // try next
       }
 
       const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (txt) return txt;
 
       console.warn('Gemini empty/blocked response', { model, data });
-      // try next model if empty/blocked
     } catch (e) {
       console.error('Gemini fetch error', { model, error: e?.message || e });
-      // try next model
     }
   }
 
-  // If all attempts failed:
   return 'در حال حاضر پاسخ هوشمند دردسترس نیست.';
 }
 
@@ -440,7 +430,6 @@ app.post('/api/bot', async (req, res) => {
     return reply(ans);
   }
 
-  // Disabled / over limit / no key
   return reply('برای پاسخ دقیق‌تر نیاز به بررسی حضوری است. می‌توانید پرسش را شفاف‌تر بیان کنید یا با ما تماس بگیرید.');
 });
 
@@ -463,7 +452,6 @@ app.post('/api/bot/lead', (req, res) => {
   leads.push(lead);
   console.log('New lead (chatbot):', lead);
 
-  // TODO: email/telegram notification if you like
   return res.json({ ok: true });
 });
 
@@ -481,4 +469,12 @@ io.on('connection', (socket) => {
     messages.push(msg);
     io.emit('chat:broadcast', msg);
   });
+});
+
+
+
+// ---------------- Start ----------------
+const PORT = process.env.PORT || 3000;
+http.listen(PORT, () => {
+  console.log(`Harmony Chehre Beauty Clinic running at http://localhost:${PORT}`);
 });
