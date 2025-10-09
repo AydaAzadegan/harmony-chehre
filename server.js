@@ -245,6 +245,9 @@ const serviceLongContent = {
   }
 };
 
+
+
+
 // --------------- In-memory storage ----------------
 const messages = []; // for Socket.IO site chat
 const leads = [];    // chatbot lead capture
@@ -301,13 +304,14 @@ app.get('/_gemini_models', async (req, res) => {
 });
 
 
-// ---------- Gemini helper (v1beta + 1.5-flash-8b-latest, relaxed safety, system_instruction) ----------
+// ---------- Gemini helper (robust text extraction, v1beta, 1.5-flash-8b-latest) ----------
 async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
   const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
   if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
 
-  const MODEL = 'models/gemini-1.5-flash-8b-latest'; // very commonly enabled
-  const URL = `https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent?key=${API_KEY}`;
+  // This model is widely available on free tier
+  const MODEL = 'gemini-1.5-flash-8b-latest';
+  const URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
 
   const SYSTEM =
 `تو دستیار کلینیک «هارمونی چهره» هستی و همیشه فارسی و کوتاه پاسخ می‌دهی.
@@ -318,20 +322,13 @@ async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
 - لینک‌های داخلی: /services/botox /services/lip-filler /services/cheek-chin-filler /services/jawline-filler`;
 
   const payload = {
-    // system_instruction is honored by Gemini REST
     system_instruction: { parts: [{ text: SYSTEM }] },
     contents: [
       { role: "user", parts: [{ text: String(userText || '').slice(0, 2000) }] }
     ],
     generationConfig: { maxOutputTokens: 350, temperature: 0.3 },
-    // relax safety to avoid empty replies on benign medical-cosmetic FAQs
-    safetySettings: [
-      { category: "HARM_CATEGORY_DANGEROUS_CONTENT",    threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_HARASSMENT",            threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_HATE_SPEECH",           threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",     threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_MEDICAL",               threshold: "BLOCK_NONE" }, // important for skincare talk
-    ]
+    // keep defaults; requesting unknown categories can silently noop
+    // safetySettings: [] 
   };
 
   try {
@@ -350,10 +347,15 @@ async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
         : null;
     }
 
-    const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    if (txt) return txt;
+    // ---- IMPORTANT: gather ALL text parts from ALL candidates ----
+    const texts = (data?.candidates || [])
+      .flatMap(c => (c?.content?.parts || []))
+      .map(p => (p?.text || '').trim())
+      .filter(Boolean);
 
-    // If the model returned no text, surface a hint in debug mode
+    const joined = texts.join('\n').trim();
+    if (joined) return joined;
+
     console.warn('Gemini empty/blocked response', { model: MODEL, data });
     return verboseToUser || process.env.GEMINI_DEBUG === 'true'
       ? `پاسخ خالی/مسدود از مدل (${MODEL}).`
@@ -366,6 +368,7 @@ async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
       : null;
   }
 }
+
 
 
 
