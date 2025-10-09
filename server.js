@@ -309,7 +309,6 @@ async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
   const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
   if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
 
-  // This model is widely available on free tier
   const MODEL = 'gemini-1.5-flash-8b-latest';
   const URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
 
@@ -323,12 +322,9 @@ async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
 
   const payload = {
     system_instruction: { parts: [{ text: SYSTEM }] },
-    contents: [
-      { role: "user", parts: [{ text: String(userText || '').slice(0, 2000) }] }
-    ],
-    generationConfig: { maxOutputTokens: 350, temperature: 0.3 },
-    // keep defaults; requesting unknown categories can silently noop
-    // safetySettings: [] 
+    contents: [{ role: "user", parts: [{ text: String(userText || '').slice(0, 2000) }] }],
+    generationConfig: { maxOutputTokens: 350, temperature: 0.3 }
+    // IMPORTANT: no safetySettings here
   };
 
   try {
@@ -342,32 +338,29 @@ async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
     if (!r.ok) {
       const msg = data?.error?.message || data?.error?.status || String(r.status);
       console.error('Gemini HTTP error', r.status, { model: MODEL, msg, data });
-      return verboseToUser || process.env.GEMINI_DEBUG === 'true'
-        ? `خطای سرویس هوشمند (${MODEL}): ${msg}`
-        : null;
+      return (verboseToUser || process.env.GEMINI_DEBUG === 'true')
+        ? `خطای سرویس هوشمند (${MODEL}): ${msg}` : null;
     }
 
-    // ---- IMPORTANT: gather ALL text parts from ALL candidates ----
+    // collect all parts from all candidates
     const texts = (data?.candidates || [])
-      .flatMap(c => (c?.content?.parts || []))
+      .flatMap(c => c?.content?.parts || [])
       .map(p => (p?.text || '').trim())
       .filter(Boolean);
-
     const joined = texts.join('\n').trim();
     if (joined) return joined;
 
     console.warn('Gemini empty/blocked response', { model: MODEL, data });
-    return verboseToUser || process.env.GEMINI_DEBUG === 'true'
-      ? `پاسخ خالی/مسدود از مدل (${MODEL}).`
-      : null;
+    return (verboseToUser || process.env.GEMINI_DEBUG === 'true')
+      ? `پاسخ خالی/مسدود از مدل (${MODEL}).` : null;
 
   } catch (e) {
     console.error('Gemini fetch error', { model: MODEL, error: e?.message || e });
-    return verboseToUser || process.env.GEMINI_DEBUG === 'true'
-      ? `خطای ارتباط با مدل (${MODEL}): ${e?.message || e}`
-      : null;
+    return (verboseToUser || process.env.GEMINI_DEBUG === 'true')
+      ? `خطای ارتباط با مدل (${MODEL}): ${e?.message || e}` : null;
   }
 }
+
 
 
 
