@@ -56,43 +56,48 @@ const services = [
 ];
 
 
-// ---------- Gallery data ----------
+const fs = require('fs');
+
+// sections (keys used as directory names under public/images/gallery)
 const gallerySections = [
-  { key: 'lipfiller',  title: 'فیلر لب' },
-  { key: 'chinfiller', title: 'فیلر چانه' },
-  { key: 'cheekfiller',title: 'فیلر گونه' },
-  { key: 'jawline',    title: 'فیلر خط فک' },
-  { key: 'botox',      title: 'بوتاکس' },
+  { key: 'lip',     title: 'فیلر لب' },
+  { key: 'chin',    title: 'فیلر چانه' },
+  { key: 'cheek',   title: 'فیلر گونه' },
+  { key: 'jawline', title: 'فیلر خط فک' },
+  { key: 'botox',   title: 'بوتاکس' },
 ];
 
-// هر بخش: لیست عکس‌ها (مسیرها را با عکس‌های واقعی خودت جایگزین کن)
-const galleryImages = {
-  lipfiller: [
-    '/images/gallery/lip/1lip.png',
-    '/images/gallery/lip/2lip.png',
-    '/images/gallery/lip/3lip.png',
-  ],
-  chinfiller: [
-    '/images/gallery/chin/1.jpg',
-    '/images/gallery/chin/2.jpg',
-    '/images/gallery/chin/3.jpg',
-  ],
-  cheekfiller: [
-    '/images/gallery/chick/1chick.png',
- 
-  ],
-  jawline: [
-    '/images/gallery/jawline/1jawline.png',
-    '/images/gallery/jawline/2jawline.png',
-    '/images/gallery/jawline/3jawline.png',
-    '/images/gallery/jawline/4jawline.png',
-  ],
-  botox: [
-    '/images/gallery/botox/1botax.png',
-    '/images/gallery/botox/2botax.png',
-    '/images/gallery/botox/3botax.png',
-  ],
+// helper to list images under /public/<relDir>
+function listImages(relDir) {
+  const abs = path.join(__dirname, 'public', relDir);
+  if (!fs.existsSync(abs)) return [];
+  return fs.readdirSync(abs)
+    .filter(fn => /\.(jpe?g|png|webp|avif)$/i.test(fn))
+    .sort()
+    .map(fn => `/${relDir}/${fn}`); // static path from /public
+}
+
+// Build photo lists (try both correct and your earlier misspells for robustness)
+const photos = {
+  lip:     listImages('images/gallery/lip'),
+  chin:    listImages('images/gallery/chin'),
+  cheek:   listImages('images/gallery/cheek').concat(listImages('images/gallery/chick')), // supports 'chick' too
+  jawline: listImages('images/gallery/jawline'),
+  botox:   listImages('images/gallery/botox'),
 };
+
+// Gallery route
+app.get('/gallery', (req, res) => {
+  res.render('gallery', {
+    pageTitle: 'گالری نمونه کار | هارمونی چهره',
+    sections: gallerySections,
+    photos
+  });
+});
+
+// (optional) debug route to see what the server found
+app.get('/_gallery_debug', (req, res) => res.json({ sections: gallerySections, photos }));
+
 
 
 const serviceLongContent = {

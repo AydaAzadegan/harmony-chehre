@@ -7,7 +7,6 @@
       نمونه‌های قبل و بعد و نماهای نزدیک از نتایج درمان‌ها. برای هر بخش روی تب کلیک کنید.
     </p>
 
-    <!-- Tabs -->
     <div class="tabs" role="tablist" aria-label="Gallery sections" style="display:flex; gap:6px; flex-wrap:wrap;">
       <% sections.forEach((s, i) => { %>
         <button class="tab-btn <%= i===0 ? 'active' : '' %>"
@@ -31,7 +30,6 @@
             <img src="<%= src %>" alt="<%= s.title %>" loading="lazy"
                  style="width:100%; height:180px; object-fit:cover; border-radius:8px;"
                  onclick="openLightbox('<%= src %>')" />
-            <!-- اگر بخوای کپشن: <figcaption class="text-[var(--muted)]" style="font-size:12px; margin-top:6px;">کپشن</figcaption> -->
           </figure>
         <% }) %>
         <% if (!(photos[s.key] || []).length) { %>
@@ -42,7 +40,6 @@
   <% }) %>
 </section>
 
-<!-- Lightbox (modal) -->
 <div id="lightbox" class="hide" aria-hidden="true"
      style="position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:99999; padding:10px;">
   <button onclick="closeLightbox()" aria-label="بستن"
@@ -51,11 +48,9 @@
 </div>
 
 <script>
-  // Tabs
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const target = btn.getAttribute('data-target');
-
       document.querySelectorAll('.tab-btn').forEach(b => {
         b.classList.remove('active');
         b.setAttribute('aria-selected', 'false');
@@ -66,16 +61,12 @@
       btn.style.background = '#F4F7F0';
 
       document.querySelectorAll('.gallery-grid').forEach(g => {
-        if (g.dataset.section === target) {
-          g.classList.remove('hide'); g.classList.add('show');
-        } else {
-          g.classList.remove('show'); g.classList.add('hide');
-        }
+        if (g.dataset.section === target) { g.classList.remove('hide'); g.classList.add('show'); }
+        else { g.classList.remove('show'); g.classList.add('hide'); }
       });
     });
   });
 
-  // Lightbox
   window.openLightbox = function(src){
     const lb = document.getElementById('lightbox');
     const img = document.getElementById('lightbox-img');
