@@ -304,13 +304,11 @@ app.get('/_gemini_models', async (req, res) => {
 });
 
 
-// ---------- Gemini helper (robust text extraction, v1beta, 1.5-flash-8b-latest) ----------
+// Tries multiple model+API combos until one works.
+// No safetySettings (keeps it compatible).
 async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
   const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
   if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
-
-  const MODEL = 'gemini-1.5-flash-8b-latest';
-  const URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
 
   const SYSTEM =
 `تو دستیار کلینیک «هارمونی چهره» هستی و همیشه فارسی و کوتاه پاسخ می‌دهی.
@@ -324,42 +322,57 @@ async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
     system_instruction: { parts: [{ text: SYSTEM }] },
     contents: [{ role: "user", parts: [{ text: String(userText || '').slice(0, 2000) }] }],
     generationConfig: { maxOutputTokens: 350, temperature: 0.3 }
-    // IMPORTANT: no safetySettings here
   };
 
-  try {
-    const r = await fetch(URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await r.json();
+  // Try these in order — one of them will match your project’s allowlist
+  const bases  = ['v1', 'v1beta'];
+  const models = [
+    'models/gemini-1.5-flash',          // common
+    'models/gemini-1.5-flash-002',      // common in v1
+    'models/gemini-1.5-flash-latest',
+    'models/gemini-1.5-flash-8b',
+    'models/gemini-1.5-flash-8b-latest'
+  ];
 
-    if (!r.ok) {
-      const msg = data?.error?.message || data?.error?.status || String(r.status);
-      console.error('Gemini HTTP error', r.status, { model: MODEL, msg, data });
-      return (verboseToUser || process.env.GEMINI_DEBUG === 'true')
-        ? `خطای سرویس هوشمند (${MODEL}): ${msg}` : null;
+  for (const base of bases) {
+    for (const model of models) {
+      const URL = `https://generativelanguage.googleapis.com/${base}/${model}:generateContent?key=${API_KEY}`;
+      try {
+        const r = await fetch(URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await r.json();
+
+        if (!r.ok) {
+          const msg = data?.error?.message || data?.error?.status || String(r.status);
+          console.warn('Gemini HTTP error', { base, model, msg });
+          continue; // try next combo
+        }
+
+        const texts = (data?.candidates || [])
+          .flatMap(c => c?.content?.parts || [])
+          .map(p => (p?.text || '').trim())
+          .filter(Boolean);
+
+        if (texts.length) return texts.join('\n').trim();
+
+        console.warn('Gemini empty/blocked response', { base, model });
+        // try next combo
+      } catch (e) {
+        console.warn('Gemini fetch error', { base, model, error: e?.message || e });
+        // try next combo
+      }
     }
-
-    // collect all parts from all candidates
-    const texts = (data?.candidates || [])
-      .flatMap(c => c?.content?.parts || [])
-      .map(p => (p?.text || '').trim())
-      .filter(Boolean);
-    const joined = texts.join('\n').trim();
-    if (joined) return joined;
-
-    console.warn('Gemini empty/blocked response', { model: MODEL, data });
-    return (verboseToUser || process.env.GEMINI_DEBUG === 'true')
-      ? `پاسخ خالی/مسدود از مدل (${MODEL}).` : null;
-
-  } catch (e) {
-    console.error('Gemini fetch error', { model: MODEL, error: e?.message || e });
-    return (verboseToUser || process.env.GEMINI_DEBUG === 'true')
-      ? `خطای ارتباط با مدل (${MODEL}): ${e?.message || e}` : null;
   }
+
+  // If nothing worked:
+  return verboseToUser || process.env.GEMINI_DEBUG === 'true'
+    ? 'هیچ مدل/نسخه‌ای برای این کلید فعال نیست. از /_gemini_models برای دیدن لیست مدل‌های مجاز استفاده کنید.'
+    : null;
 }
+
 
 
 
