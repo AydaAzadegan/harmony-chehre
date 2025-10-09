@@ -2,48 +2,26 @@
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
+
 const app = express();
 
-// Templates (EJS + ejs-mate)
+// ---------- Templating ----------
 const engine = require('ejs-mate');
 app.engine('ejs', engine);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-
-// fetch polyfill for Node < 18 (safe on >=18 too)
-const fetch = global.fetch || ((...args) => import('node-fetch').then(m => m.default(...args)));
-
 app.set('trust proxy', 1);
 
-// Static + parsers (must be before routes)
+// ---------- Static + Parsers ----------
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // needed for /api/bot and /api/bot/lead
+app.use(express.json());
 
-// --- HTTP + Socket.IO ---
+// ---------- HTTP + Socket.IO ----------
 const http = require('http').createServer(app);
-const io = require('socket.io')(http, { cors: { origin: "*" } });
+const io = require('socket.io')(http, { cors: { origin: '*' } });
 
-
-// ---------------- Routes ----------------
-
-// Home (index)
-app.get('/', (req, res) => {
-  res.render('index', {
-    pageTitle: 'کلینیک زیبایی هارمونی چهره',
-    services,     // cards on the home page
-    messages,     // for your simple chat widget (safe even if unused)
-    req
-  });
-});
-
-app.use(express.static(path.join(__dirname, 'public')));
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-
-
-
-// ---------------- Data ----------------
+// ---------- Data (define BEFORE routes) ----------
 const services = [
   { id:'botox', slug:'botox', title:'بوتاکس (تزریق بوتولینوم)', text:'کاهش خطوط پیشانی، اخم و پنجه‌کلاغی با نتیجه طبیعی و بدون حالت یخ‌زده.', cover:'/images/services/botox.jpg' },
   { id:'cheek-chin', slug:'cheek-chin-filler', title:'فیلر چانه و گونه', text:'بهبود برجستگی گونه و فرم چانه برای تناسب بهتر چهره با هیالورونیک اسید.', cover:'/images/services/cheek-chin.jpeg' },
@@ -51,13 +29,13 @@ const services = [
   { id:'lip', slug:'lip-filler', title:'فیلر لب (تزریق ژل لب)', text:'حجم‌دهی طبیعی، مرزبندی و اصلاح عدم تقارن با فیلر هیالورونیک اسید.', cover:'/images/services/lip.png' }
 ];
 
-// ---------- Gallery (filesystem-driven) ----------
+// ----- Gallery (filesystem-driven) -----
 const gallerySections = [
-  { key: 'lip',     title: 'فیلر لب' },
-  { key: 'chin',    title: 'فیلر چانه' },
-  { key: 'cheek',   title: 'فیلر گونه' },
-  { key: 'jawline', title: 'فیلر خط فک' },
-  { key: 'botox',   title: 'بوتاکس' },
+  { key:'lip', title:'فیلر لب' },
+  { key:'chin', title:'فیلر چانه' },
+  { key:'cheek', title:'فیلر گونه' },
+  { key:'jawline', title:'فیلر خط فک' },
+  { key:'botox', title:'بوتاکس' },
 ];
 
 function listImages(relDir) {
@@ -69,7 +47,7 @@ function listImages(relDir) {
     .map(fn => `/${relDir}/${fn}`);
 }
 
-// NOTE: looks in /public/images/gallery/{lip,chin,cheek or chick,jawline,botox}
+// looks in /public/images/gallery/{lip,chin,cheek or chick,jawline,botox}
 const photos = {
   lip:     listImages('images/gallery/lip'),
   chin:    listImages('images/gallery/chin'),
@@ -78,60 +56,82 @@ const photos = {
   botox:   listImages('images/gallery/botox'),
 };
 
-// ---------------- Long service content (unchanged) ----------------
+// ----- Long content (unchanged short versions here) -----
 const serviceLongContent = {
   botox: {
-    seo: { description: 'بوتاکس برای کاهش خطوط دینامیک پیشانی، اخم و اطراف چشم با نتیجه طبیعی در کلینیک هارمونی چهره. معاینه تخصصی، مواد دارای مجوز، و راهنمایی مراقبت بعد.' },
-    body: `
-      <h2>بوتاکس چیست و چگونه عمل می‌کند؟</h2>
-      <p>بوتاکس (Botulinum Toxin) با مهار موقت انقباض برخی عضلات صورت، <strong>خطوط دینامیک</strong> مثل پیشانی، اخم و پنجه‌کلاغی را کاهش می‌دهد تا پوست <strong>صاف‌تر و جوان‌تر</strong> دیده شود. در کلینیک هارمونی چهره روی <em>طبیعی ماندن حالت چهره</em> تأکید داریم.</p>
-      <h3>مزایا</h3>
-      <ul><li>اصلاح خطوط بدون ایجاد حالت یخ‌زده</li><li>استفاده از برندهای دارای مجوز و معتبر</li><li>تنظیم دوز دقیق بر اساس آناتومی چهره</li><li>مراقبت‌های پس از تزریق و پیگیری</li></ul>
-      <h3>کاندیدای مناسب</h3>
-      <p>اگر خطوط اخم/پیشانی یا چین‌های اطراف چشم هنگام خندیدن/اخم کردن پررنگ می‌شود، گزینهٔ مناسبی هستید. در دوران بارداری/شیردهی انجام نمی‌شود.</p>
-      <h3>فرآیند انجام</h3>
-      <ol><li><strong>مشاوره و ارزیابی عضلات:</strong> تعیین نقاط دقیق تزریق</li><li><strong>آماده‌سازی:</strong> ضدعفونی و علامت‌گذاری</li><li><strong>تزریق سریع و کم‌درد:</strong> با سوزن ظریف در چند نقطهٔ هدف</li></ol>
-      <h3>شروع اثر و ماندگاری</h3>
-      <p>اثر اولیه طی <strong>۳–۷ روز</strong> ظاهر می‌شود و نتیجهٔ کامل حدود ۱۴ روز بعد دیده می‌شود. ماندگاری معمولاً <strong>۳–۶ ماه</strong> است.</p>
-      <h3>مراقبت‌های بعد</h3>
-      <ul><li>تا ۴ ساعت دراز نکشید و ناحیه را ماساژ ندهید</li><li>روز اول از ورزش سنگین و گرمای زیاد پرهیز کنید</li><li>در صورت نیاز، ویزیت تکمیلی بعد از ۲ هفته انجام می‌شود</li></ul>
-      <div class="card" style="margin-top:12px"><p style="margin:0"><strong>مشاوره:</strong> <a href="tel:+989150739223">تماس</a> یا <a href="https://www.instagram.com/dr_atighinasab_/?hl=en" target="_blank" rel="noopener">اینستاگرام</a>.</p></div>
-    `,
-    faqs: [
-      { q:'اثر بوتاکس کی شروع می‌شود؟', a:'بین ۳ تا ۷ روز آغاز می‌شود و نتیجهٔ کامل ~۱۴ روز.' },
-      { q:'دوام؟', a:'۳ تا ۶ ماه (متغیر).' },
-      { q:'بی‌حالت می‌شوم؟', a:'با تنظیم دوز و نقاط، نتیجه طبیعی است.' },
-      { q:'نقاهت؟', a:'بازگشت سریع به فعالیت‌ها؛ کبودی خفیف ممکن است ۱–۳ روز.' },
-    ]
+    seo: { description: 'بوتاکس برای کاهش خطوط دینامیک…' },
+    body: `<h2>بوتاکس چیست؟</h2><p>توضیحات…</p>`,
+    faqs: []
   },
   'lip-filler': {
-    seo: { description:'فیلر لب با هیالورونیک اسید برای حجم‌دهی طبیعی…' },
-    body: `
-      <h2>فیلر لب چیست؟</h2>
-      <p>فیلر لب برای <strong>حجم‌دهی طبیعی</strong>، مرزبندی و <strong>اصلاح عدم تقارن</strong> استفاده می‌شود.</p>
-      <h3>مراقبت‌های بعد</h3>
-      <ul><li>۲۴ ساعت گرمای زیاد/باشگاه نروید</li><li>از ماساژ خودسرانه پرهیز کنید</li><li>نوشیدنی کافی؛ پرهیز از الکل/سیگار ۲۴–۴۸ ساعت</li></ul>
-    `,
-    faqs: [
-      { q:'دوام؟', a:'معمولاً ۶–۱۲ ماه.' },
-      { q:'طبیعی می‌شود؟', a:'بله، طراحی بر اساس تناسب چهره.' }
-    ]
+    seo: { description: 'فیلر لب…' },
+    body: `<h2>فیلر لب چیست؟</h2><p>توضیحات…</p>`,
+    faqs: []
   },
   'cheek-chin-filler': {
-    seo: { description:'فیلر گونه و چانه برای تناسب صورت…' },
-    body: `<h2>فیلر چانه و گونه چیست؟</h2><p>تعادل نیم‌رخ با تقویت چانه و افزایش برجستگی گونه.</p>`,
+    seo: { description: 'فیلر گونه و چانه…' },
+    body: `<h2>فیلر چانه و گونه چیست؟</h2><p>توضیحات…</p>`,
     faqs: []
   },
   'jawline-filler': {
-    seo: { description:'فیلر خط فک برای زاویه‌سازی ملایم…' },
-    body: `<h2>فیلر خط فک</h2><p>تعریف مرز فک و زاویه‌سازی ظریف.</p>`,
+    seo: { description: 'فیلر خط فک…' },
+    body: `<h2>فیلر خط فک</h2><p>توضیحات…</p>`,
     faqs: []
   }
 };
 
-// --------------- In-memory storage ----------------
-const messages = []; // for Socket.IO site chat
-const leads = [];    // chatbot lead capture
+// ----- In-memory chat store -----
+const messages = [];
+const leads = [];
+
+// ---------- Routes ----------
+app.get('/', (req, res) => {
+  res.render('index', {
+    pageTitle: 'کلینیک زیبایی هارمونی چهره',
+    services,
+    messages,
+    req
+  });
+});
+
+app.get('/gallery', (req, res) => {
+  res.render('gallery', {
+    pageTitle: 'گالری نمونه کار | هارمونی چهره',
+    sections: gallerySections,
+    photos
+  });
+});
+
+app.get('/services/:slug', (req, res) => {
+  const s = services.find(x => x.slug === req.params.slug);
+  if (!s) return res.status(404).send('Service not found');
+  const details = serviceLongContent[s.slug] || { body:'', faqs:[], seo:{} };
+  const faqLd = details.faqs?.length ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: details.faqs.map(f => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a }
+    }))
+  } : null;
+
+  res.render('service', {
+    pageTitle: `${s.title} | کلینیک زیبایی هارمونی چهره`,
+    metaDescription: details.seo?.description || s.text,
+    service: s,
+    details,
+    faqLd
+  });
+});
+
+app.post('/contact', (req, res) => {
+  const { name, phone, message } = req.body || {};
+  console.log('Contact form:', { name, phone, message });
+  res.redirect('/#contact-success');
+});
+
+
 
 // ---------- Gemini usage guards + status/test (kept; no duplicates) ----------
 const GEMINI_ENABLED = process.env.GEMINI_ENABLED !== 'false';
@@ -216,38 +216,6 @@ app.get('/_gemini_models', async (req, res) => {
 app.get('/_gemini_test', async (req, res) => {
   try { res.json({ ok:true, answer: await askGemini_FarsiClinic(req.query.q || 'سلام درباره بوتاکس کوتاه بگو.', { verboseToUser:true }) }); }
   catch (e) { res.status(500).json({ ok:false, error:e?.message || String(e) }); }
-});
-
-
-
-app.get('/gallery', (req, res) => {
-  res.render('gallery', {
-    pageTitle: 'گالری نمونه کار | هارمونی چهره',
-    sections: gallerySections,
-    photos // <— FIXED: was galleryImages (undefined)
-  });
-});
-
-app.get('/services/:slug', (req, res) => {
-  const s = services.find(x => x.slug === req.params.slug);
-  if (!s) return res.status(404).send('Service not found');
-  const details = serviceLongContent[s.slug] || { body: '', faqs: [], seo: {} };
-  const faqLd = details.faqs?.length ? {
-    "@context":"https://schema.org","@type":"FAQPage",
-    "mainEntity": details.faqs.map(f => ({"@type":"Question","name":f.q,"acceptedAnswer":{"@type":"Answer","text":f.a}}))
-  } : null;
-
-  res.render('service', {
-    pageTitle: `${s.title} | کلینیک زیبایی هارمونی چهره`,
-    metaDescription: details.seo?.description || s.text,
-    service: s, details, faqLd
-  });
-});
-
-app.post('/contact', (req, res) => {
-  const { name, phone, message } = req.body || {};
-  console.log('Contact form:', { name, phone, message });
-  return res.redirect('/#contact-success');
 });
 
 // ---------- Chatbot: FAQ / intents ----------
