@@ -321,25 +321,48 @@ async function listGeminiModels() {
   return result;
 }
 function pickBestFlashModel(models) {
-  // prefer v1 over v1beta; prefer newer variants
-  const order = [
-    'models/gemini-1.5-flash-002',
-    'models/gemini-1.5-flash-latest',
-    'models/gemini-1.5-flash',
-    'models/gemini-1.5-flash-8b-latest',
-    'models/gemini-1.5-flash-8b',
+  // Prefer v1 over v1beta, and 2.5 over 2.0 over 1.5, Flash > Flash-Lite > 8b
+  const preference = [
+    // v1 (production)
+    { base: 'v1',    name: 'models/gemini-2.5-flash' },
+    { base: 'v1',    name: 'models/gemini-2.5-flash-lite' },
+    { base: 'v1',    name: 'models/gemini-2.0-flash' },
+    { base: 'v1',    name: 'models/gemini-2.0-flash-001' },
+    { base: 'v1',    name: 'models/gemini-2.0-flash-lite' },
+    { base: 'v1',    name: 'models/gemini-2.0-flash-lite-001' },
+
+    // v1beta (preview/fallbacks)
+    { base: 'v1beta', name: 'models/gemini-2.5-flash' },
+    { base: 'v1beta', name: 'models/gemini-2.5-flash-lite' },
+    { base: 'v1beta', name: 'models/gemini-2.5-flash-preview-09-2025' },
+    { base: 'v1beta', name: 'models/gemini-2.5-flash-lite-preview-09-2025' },
+    { base: 'v1beta', name: 'models/gemini-2.0-flash' },
+    { base: 'v1beta', name: 'models/gemini-2.0-flash-001' },
+    { base: 'v1beta', name: 'models/gemini-2.0-flash-lite' },
+    { base: 'v1beta', name: 'models/gemini-2.0-flash-lite-001' },
+
+    // very last resorts (generic aliases)
+    { base: 'v1beta', name: 'models/gemini-flash-latest' },
+    { base: 'v1beta', name: 'models/gemini-2.5-flash-preview-05-20' },
+    { base: 'v1beta', name: 'models/gemini-2.5-flash' }, // already listed, harmless
   ];
-  // split by base
-  const v1 = models.filter(m => m.base === 'v1').map(m => m.name);
-  const v1beta = models.filter(m => m.base === 'v1beta').map(m => m.name);
 
-  for (const wanted of order) if (v1.includes(wanted))   return { base: 'v1',    name: wanted };
-  for (const wanted of order) if (v1beta.includes(wanted)) return { base: 'v1beta', name: wanted };
+  // Build quick lookup
+  const have = new Set(models.map(m => `${m.base}::${m.name}`));
 
-  // fall back to any flash-like model
-  const any = models.find(m => /gemini-1\.5-flash/.test(m.name));
+  for (const pref of preference) {
+    if (have.has(`${pref.base}::${pref.name}`)) {
+      return { base: pref.base, name: pref.name };
+    }
+  }
+
+  // Fallback: any flash-y thing from what we saw (pref v1)
+  const v1Any = models.find(m => m.base === 'v1' && /gemini-.*flash/i.test(m.name));
+  if (v1Any) return v1Any;
+  const any = models.find(m => /gemini-.*flash/i.test(m.name));
   return any || null;
 }
+
 
 
 async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
