@@ -301,108 +301,72 @@ app.get('/_gemini_models', async (req, res) => {
 });
 
 
-// ---------- Gemini helper: discover models, then call generateContent ----------
+// ---------- Gemini helper (v1beta + 1.5-flash-8b-latest, relaxed safety, system_instruction) ----------
 async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
   const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
   if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
+
+  const MODEL = 'models/gemini-1.5-flash-8b-latest'; // very commonly enabled
+  const URL = `https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent?key=${API_KEY}`;
 
   const SYSTEM =
 `تو دستیار کلینیک «هارمونی چهره» هستی و همیشه فارسی و کوتاه پاسخ می‌دهی.
 - خدمات زیبایی (بوتاکس، فیلر لب/گونه/چانه/خط فک) و مراقبت‌های عمومی قبل/بعد را ایمن توضیح بده.
 - تشخیص/نسخه/قیمت قطعی نده؛ در موارد خاص تأکید کن معاینه لازم است.
-- اگر بی‌ربط بود، مؤدبانه کوتاه پاسخ بده و گفتگو را به خدمات برگردان.
+- اگر بی‌ارتباط بود، مؤدبانه کوتاه پاسخ بده و گفتگو را به خدمات برگردان.
 - راه‌های تماس (در صورت مرتبط بودن): +989150739223 ، @dr_atighinasab_ .
 - لینک‌های داخلی: /services/botox /services/lip-filler /services/cheek-chin-filler /services/jawline-filler`;
 
   const payload = {
+    // system_instruction is honored by Gemini REST
+    system_instruction: { parts: [{ text: SYSTEM }] },
     contents: [
-      { role: "user", parts: [{ text: `${SYSTEM}\n\nپرسش کاربر:\n${String(userText||'').slice(0,2000)}` }] }
+      { role: "user", parts: [{ text: String(userText || '').slice(0, 2000) }] }
     ],
-    generationConfig: { maxOutputTokens: 350, temperature: 0.3 }
+    generationConfig: { maxOutputTokens: 350, temperature: 0.3 },
+    // relax safety to avoid empty replies on benign medical-cosmetic FAQs
+    safetySettings: [
+      { category: "HARM_CATEGORY_DANGEROUS_CONTENT",    threshold: "BLOCK_NONE" },
+      { category: "HARM_CATEGORY_HARASSMENT",            threshold: "BLOCK_NONE" },
+      { category: "HARM_CATEGORY_HATE_SPEECH",           threshold: "BLOCK_NONE" },
+      { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",     threshold: "BLOCK_NONE" },
+      { category: "HARM_CATEGORY_MEDICAL",               threshold: "BLOCK_NONE" }, // important for skincare talk
+    ]
   };
 
-  const API_Bases = ['v1beta', 'v1']; // try beta first (more widely available)
+  try {
+    const r = await fetch(URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await r.json();
 
-  // 1) fetch model list once (per request)
-  async function listModels(base) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/${base}/models?key=${API_KEY}`;
-      const r = await fetch(url);
-      const j = await r.json();
-      if (!r.ok) return [];
-      return (j.models || []).map(m => m.name); // e.g. "models/gemini-1.5-flash-latest"
-    } catch { return []; }
-  }
-
-  // 2) Pick candidates: whatever your project lists, filtered to flash/pro families
-  let candidates = [];
-  for (const base of API_Bases) {
-    const names = await listModels(base);
-    if (names.length) {
-      const prefer = names.filter(n =>
-        /models\/gemini-1\.5-(flash|flash-8b|pro)/.test(n) && /latest/.test(n)
-      );
-      const fallbacks = [
-        'models/gemini-1.5-flash-latest',
-        'models/gemini-1.5-flash-8b-latest',
-        'models/gemini-1.5-pro-latest'
-      ];
-      // keep only those that actually exist in this base
-      const fbAvail = fallbacks.filter(f => names.includes(f));
-      candidates.push({ base, models: prefer.length ? prefer : fbAvail });
+    if (!r.ok) {
+      const msg = data?.error?.message || data?.error?.status || String(r.status);
+      console.error('Gemini HTTP error', r.status, { model: MODEL, msg, data });
+      return verboseToUser || process.env.GEMINI_DEBUG === 'true'
+        ? `خطای سرویس هوشمند (${MODEL}): ${msg}`
+        : null;
     }
+
+    const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    if (txt) return txt;
+
+    // If the model returned no text, surface a hint in debug mode
+    console.warn('Gemini empty/blocked response', { model: MODEL, data });
+    return verboseToUser || process.env.GEMINI_DEBUG === 'true'
+      ? `پاسخ خالی/مسدود از مدل (${MODEL}).`
+      : null;
+
+  } catch (e) {
+    console.error('Gemini fetch error', { model: MODEL, error: e?.message || e });
+    return verboseToUser || process.env.GEMINI_DEBUG === 'true'
+      ? `خطای ارتباط با مدل (${MODEL}): ${e?.message || e}`
+      : null;
   }
-
-  // 3) If nothing came back, try a static shortlist on v1beta (often enabled)
-  if (!candidates.length) {
-    candidates = [{ base:'v1beta', models:[
-      'models/gemini-1.5-flash-latest',
-      'models/gemini-1.5-flash-8b-latest',
-      'models/gemini-1.5-pro-latest'
-    ] }];
-  }
-
-  // 4) Try calling generateContent with each candidate
-  for (const c of candidates) {
-    for (const model of c.models) {
-      const url = `https://generativelanguage.googleapis.com/${c.base}/${model}:generateContent?key=${API_KEY}`;
-      try {
-        const r = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await r.json();
-
-        if (!r.ok) {
-          const msg = data?.error?.message || data?.error?.status || String(r.status);
-          console.error('Gemini HTTP error', r.status, { base: c.base, model, msg });
-          if (process.env.GEMINI_DEBUG === 'true' && verboseToUser) {
-            return `خطای سرویس هوشمند (${c.base}/${model.replace('models/','')}): ${msg}`;
-          }
-          continue; // try next
-        }
-
-        const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (txt) return txt;
-
-        console.warn('Gemini empty/blocked response', { base: c.base, model, data });
-        if (process.env.GEMINI_DEBUG === 'true' && verboseToUser) {
-          return `پاسخ خالی/مسدود (${c.base}/${model.replace('models/','')}).`;
-        }
-        // try next
-      } catch (e) {
-        console.error('Gemini fetch error', { base: c.base, model, error: e?.message || e });
-        if (process.env.GEMINI_DEBUG === 'true' && verboseToUser) {
-          return `خطای ارتباط با مدل (${c.base}/${model.replace('models/','')}): ${e?.message || e}`;
-        }
-        // try next
-      }
-    }
-  }
-
-  return null; // caller shows fallback text
 }
+
 
 
 // Handy test route (keeps your status check, too)
