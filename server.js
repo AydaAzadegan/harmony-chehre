@@ -283,7 +283,7 @@ app.get('/_gemini_test', async (req, res) => {
   }
 });
 
-// ---------- Gemini helper (v1 endpoint, single model, optional debug) ----------
+// ---------- Gemini helper that tries multiple (endpoint, model) combos ----------
 async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
   const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
   if (!API_KEY) return 'کلید سرویس در دسترس نیست.';
@@ -303,42 +303,64 @@ async function askGemini_FarsiClinic(userText, { verboseToUser = false } = {}) {
     generationConfig: { maxOutputTokens: 350, temperature: 0.3 }
   };
 
-  const model = "gemini-1.5-flash";
-  const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${API_KEY}`;
+  // Try a few stable combos (some projects enable a subset)
+  const tries = [
+    { base: 'v1',     model: 'gemini-1.5-flash-latest' },
+    { base: 'v1beta', model: 'gemini-1.5-flash-latest' },
+    { base: 'v1',     model: 'gemini-1.5-flash-8b-latest' },
+  ];
 
-  try {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await r.json();
+  for (const t of tries) {
+    const url = `https://generativelanguage.googleapis.com/${t.base}/models/${t.model}:generateContent?key=${API_KEY}`;
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await r.json();
 
-    if (!r.ok) {
-      console.error('Gemini HTTP error', r.status, { model, data });
-      const msg = data?.error?.message || data?.error?.status || String(r.status);
-      if (verboseToUser || process.env.GEMINI_DEBUG === 'true') {
-        return `خطای سرویس هوشمند (${model}): ${msg}`;
+      if (!r.ok) {
+        const msg = data?.error?.message || data?.error?.status || String(r.status);
+        console.error('Gemini HTTP error', r.status, { endpoint: t.base, model: t.model, msg });
+        if (process.env.GEMINI_DEBUG === 'true' && verboseToUser) {
+          return `خطای سرویس هوشمند (${t.base}/${t.model}): ${msg}`;
+        }
+        // try next combo
+        continue;
       }
-      return null;
-    }
 
-    const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (txt) return txt;
+      const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (txt) return txt;
 
-    console.warn('Gemini empty/blocked response', { model, data });
-    if (verboseToUser || process.env.GEMINI_DEBUG === 'true') {
-      return `پاسخ خالی/مسدود از مدل (${model}).`;
+      console.warn('Gemini empty/blocked response', { endpoint: t.base, model: t.model, data });
+      if (process.env.GEMINI_DEBUG === 'true' && verboseToUser) {
+        return `پاسخ خالی/مسدود از مدل (${t.base}/${t.model}).`;
+      }
+      // try next combo
+    } catch (e) {
+      console.error('Gemini fetch error', { endpoint: t.base, model: t.model, error: e?.message || e });
+      if (process.env.GEMINI_DEBUG === 'true' && verboseToUser) {
+        return `خطای ارتباط با مدل (${t.base}/${t.model}): ${e?.message || e}`;
+      }
+      // try next combo
     }
-    return null;
-  } catch (e) {
-    console.error('Gemini fetch error', { model, error: e?.message || e });
-    if (verboseToUser || process.env.GEMINI_DEBUG === 'true') {
-      return `خطای ارتباط با مدل (${model}): ${e?.message || e}`;
-    }
-    return null;
   }
+
+  return null; // caller decides what to show
 }
+
+// Handy test route (keeps your status check, too)
+app.get('/_gemini_test', async (req, res) => {
+  try {
+    const q = req.query.q || 'سلام! یک جمله کوتاه درباره بوتاکس بگو.';
+    const a = await askGemini_FarsiClinic(q, { verboseToUser: true });
+    res.json({ ok: true, answer: a || 'null (no answer)' });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+});
+
 
 
 // ---------------- Routes ----------------
@@ -430,13 +452,15 @@ if (canUseGemini()) {
   const ans = await askGemini_FarsiClinic(raw);
   countGemini();
   if (ans) return reply(ans);
-  // if ans is null, we had an error/empty; show a debug hint if enabled
+
+  // show debug text to user if enabled
   if (process.env.GEMINI_DEBUG === 'true') {
-    const dbg = await askGemini_FarsiClinic(raw, { verboseToUser: true });
-    return reply(dbg || 'در حال حاضر پاسخ هوشمند دردسترس نیست.');
+    const debugAns = await askGemini_FarsiClinic(raw, { verboseToUser: true });
+    return reply(debugAns || 'در حال حاضر پاسخ هوشمند دردسترس نیست.');
   }
 }
 return reply('در حال حاضر پاسخ هوشمند دردسترس نیست.');
+
 });
 
 // ---------- Chatbot: Lead capture ----------
