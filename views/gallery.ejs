@@ -3,16 +3,11 @@
 <section class="section" dir="rtl">
   <header class="card" style="display:grid; gap:10px;">
     <h1 style="margin:0">گالری نمونه‌کار</h1>
-    <p class="text-[var(--muted)]" style="margin:0">
-      نمونه‌های قبل و بعد و نماهای نزدیک از نتایج درمان‌ها. برای هر بخش روی تب کلیک کنید.
-    </p>
+    <p class="text-[var(--muted)]" style="margin:0">برای هر بخش روی تب کلیک کنید.</p>
 
     <div class="tabs" role="tablist" aria-label="Gallery sections" style="display:flex; gap:6px; flex-wrap:wrap;">
       <% sections.forEach((s, i) => { %>
-        <button class="tab-btn <%= i===0 ? 'active' : '' %>"
-                data-target="<%= s.key %>"
-                role="tab"
-                aria-selected="<%= i===0 ? 'true' : 'false' %>"
+        <button class="tab-btn <%= i===0 ? 'active' : '' %>" data-target="<%= s.key %>" role="tab" aria-selected="<%= i===0 ? 'true' : 'false' %>"
                 style="border:1px solid var(--border); background:#fff; padding:8px 12px; border-radius:999px; cursor:pointer;">
           <%= s.title %>
         </button>
@@ -23,13 +18,14 @@
 
 <section class="section" dir="rtl">
   <% sections.forEach((s, i) => { %>
-    <div class="gallery-grid <%= i===0 ? 'show' : 'hide' %>" id="gal-<%= s.key %>" data-section="<%= s.key %>">
+    <div class="gallery-grid <%= i===0 ? 'show' : 'hide' %>" data-section="<%= s.key %>">
       <div class="cards" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px;">
         <% (photos[s.key] || []).forEach(src => { %>
-          <figure class="card" style="padding:8px; cursor:zoom-in;">
-            <img src="<%= src %>" alt="<%= s.title %>" loading="lazy"
-                 style="width:100%; height:180px; object-fit:cover; border-radius:8px;"
-                 onclick="openLightbox('<%= src %>')" />
+          <figure class="card" style="padding:8px;">
+            <a href="<%= src %>" target="_blank" rel="noopener" style="display:block">
+              <img src="<%= src %>" alt="<%= s.title %>" loading="lazy"
+                   style="width:100%; height:180px; object-fit:cover; border-radius:8px;" />
+            </a>
           </figure>
         <% }) %>
         <% if (!(photos[s.key] || []).length) { %>
@@ -39,8 +35,6 @@
     </div>
   <% }) %>
 </section>
-
-
 
 <script>
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -60,24 +54,6 @@
         else { g.classList.remove('show'); g.classList.add('hide'); }
       });
     });
-  });
-
-  window.openLightbox = function(src){
-    const lb = document.getElementById('lightbox');
-    const img = document.getElementById('lightbox-img');
-    img.src = src;
-    lb.classList.remove('hide');
-    lb.setAttribute('aria-hidden', 'false');
-  }
-  window.closeLightbox = function(){
-    const lb = document.getElementById('lightbox');
-    const img = document.getElementById('lightbox-img');
-    img.src = '';
-    lb.classList.add('hide');
-    lb.setAttribute('aria-hidden', 'true');
-  }
-  document.getElementById('lightbox')?.addEventListener('click', (e) => {
-    if (e.target.id === 'lightbox') closeLightbox();
   });
 </script>
 
