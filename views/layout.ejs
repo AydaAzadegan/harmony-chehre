@@ -52,6 +52,32 @@
 <!-- put this AFTER the elements above -->
 <script src="/js/bot.js?v=<%= Date.now() %>"></script>
 
+<style>
+  /* Hide any accidental placeholder/broken images */
+  img[alt="preview"],
+  img:not([src]),
+  img[src=""],
+  img[src="#"] {
+    display: none !important;
+    visibility: hidden !important;
+  }
+</style>
+
+<script>
+  // Clean up any leftover “preview” images injected by a partial or cached template
+  (function () {
+    function killBrokenPlaceholders() {
+      document.querySelectorAll('img[alt="preview"], img:not([src]), img[src=""], img[src="#"]').forEach(el => {
+        el.remove();
+      });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', killBrokenPlaceholders);
+    } else {
+      killBrokenPlaceholders();
+    }
+  })();
+</script>
 
 
 </body>
