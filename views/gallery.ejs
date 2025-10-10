@@ -62,3 +62,65 @@
   .show{ display:block; }
   .tab-btn.active{ background:#F4F7F0 !important; }
 </style>
+
+
+<!-- safe lightbox (no empty src) -->
+<div id="lightbox" hidden aria-hidden="true"></div>
+<img id="lightbox-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" alt="" hidden>
+
+
+<!-- Minimal Lightbox (no empty-src images, created on demand) -->
+<div id="lb" class="lb" hidden aria-hidden="true" role="dialog" aria-label="نمایش تصویر">
+  <button type="button" class="lb-close" aria-label="بستن" onclick="closeLightbox()">×</button>
+</div>
+
+<style>
+  .lb[hidden]{ display:none; }
+  .lb{
+    position:fixed; inset:0; z-index:99999;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.75); padding:10px;
+    cursor:zoom-out;
+  }
+  .lb img{
+    max-width:96vw; max-height:92vh; border-radius:12px;
+    display:block;
+  }
+  .lb-close{
+    position:absolute; top:14px; left:16px;
+    background:transparent; border:none; color:#fff;
+    font-size:28px; cursor:pointer; line-height:1;
+  }
+</style>
+
+<script>
+  // Open with a real src (no empty src placeholders)
+  window.openLightbox = function(src){
+    const lb = document.getElementById('lb');
+    let img = lb.querySelector('img');
+    if (!img) {
+      img = document.createElement('img');
+      img.alt = "";
+      lb.appendChild(img);
+    }
+    img.src = src;
+    lb.hidden = false;
+    lb.setAttribute('aria-hidden','false');
+  };
+
+  window.closeLightbox = function(){
+    const lb = document.getElementById('lb');
+    lb.hidden = true;
+    lb.setAttribute('aria-hidden','true');
+  };
+
+  // Close on overlay click (but not when clicking the image)
+  document.getElementById('lb').addEventListener('click', (e)=>{
+    if (e.target.id === 'lb') closeLightbox();
+  });
+
+  // Close on ESC
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape') closeLightbox();
+  });
+</script>
