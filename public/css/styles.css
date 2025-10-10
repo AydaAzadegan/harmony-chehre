@@ -176,20 +176,3 @@ img{ max-width:100%; display:block }
 }
 
 
-/* Hide any accidental 'preview' placeholder images */
-img[alt="preview"] { 
-  display: none !important; 
-}
-
-/* If the lightbox exists globally, keep it hidden by default */
-#lightbox { 
-  display: none !important; 
-}
-#lightbox[aria-hidden="false"] { 
-  display: flex !important; 
-}
-
-/* If an empty-src lightbox image is present, hide it */
-#lightbox-img[src=""] { 
-  display: none !important; 
-}
