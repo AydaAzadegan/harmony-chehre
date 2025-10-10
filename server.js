@@ -204,13 +204,13 @@ app.get('/', (req, res) => {
   res.render('index', {
     pageTitle: 'کلینیک زیبایی هارمونی چهره',
     services,
-    // send gallery data to homepage too (in case you include it there later)
-    sections: gallerySections,
-    photos,
+    sections: gallerySections, // ok even if you don’t use on homepage
+    photos,                    // ok even if you don’t use on homepage
     messages,
     req
   });
 });
+
 
 app.get('/gallery', (req, res) => {
   res.render('gallery', {
