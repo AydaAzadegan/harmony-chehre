@@ -56,28 +56,12 @@ const photos = {
   botox:   listImages('images/gallery/botox'),
 };
 
-// ----- Long content (unchanged short versions here) -----
+// ----- Minimal long content placeholders -----
 const serviceLongContent = {
-  botox: {
-    seo: { description: 'بوتاکس برای کاهش خطوط دینامیک…' },
-    body: `<h2>بوتاکس چیست؟</h2><p>توضیحات…</p>`,
-    faqs: []
-  },
-  'lip-filler': {
-    seo: { description: 'فیلر لب…' },
-    body: `<h2>فیلر لب چیست؟</h2><p>توضیحات…</p>`,
-    faqs: []
-  },
-  'cheek-chin-filler': {
-    seo: { description: 'فیلر گونه و چانه…' },
-    body: `<h2>فیلر چانه و گونه چیست؟</h2><p>توضیحات…</p>`,
-    faqs: []
-  },
-  'jawline-filler': {
-    seo: { description: 'فیلر خط فک…' },
-    body: `<h2>فیلر خط فک</h2><p>توضیحات…</p>`,
-    faqs: []
-  }
+  botox: { seo:{ description:'بوتاکس برای کاهش خطوط دینامیک…' }, body:`<h2>بوتاکس چیست؟</h2><p>توضیحات…</p>`, faqs:[] },
+  'lip-filler': { seo:{ description:'فیلر لب…' }, body:`<h2>فیلر لب چیست؟</h2><p>توضیحات…</p>`, faqs:[] },
+  'cheek-chin-filler': { seo:{ description:'فیلر گونه و چانه…' }, body:`<h2>فیلر چانه و گونه چیست؟</h2><p>توضیحات…</p>`, faqs:[] },
+  'jawline-filler': { seo:{ description:'فیلر خط فک…' }, body:`<h2>فیلر خط فک</h2><p>توضیحات…</p>`, faqs:[] }
 };
 
 // ----- In-memory chat store -----
